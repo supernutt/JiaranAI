@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { UploadCloud } from 'lucide-react';
+import { UploadCloud, FileText, Type } from 'lucide-react';
 import Link from 'next/link';
 
 export default function UploadPage() {
@@ -16,7 +16,6 @@ export default function UploadPage() {
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
-      // Check if file is .txt or .pdf
       const fileType = selectedFile.type;
       if (fileType === 'text/plain' || fileType === 'application/pdf') {
         setFile(selectedFile);
@@ -30,14 +29,11 @@ export default function UploadPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Validate that either file or text is provided
-    if (!file && !textContent && !useTextInput) {
-      setError('Please upload a file or switch to text input.');
+    if (!useTextInput && !file) {
+      setError('Please select a file to upload.');
       return;
     }
-    
-    if (useTextInput && !textContent) {
+    if (useTextInput && !textContent.trim()) {
       setError('Please enter some text content.');
       return;
     }
@@ -47,43 +43,26 @@ export default function UploadPage() {
     
     try {
       const formData = new FormData();
-      
       if (useTextInput) {
         formData.append('text_content', textContent);
       } else if (file) {
         formData.append('file', file);
       }
       
-      // Upload content to backend
       const uploadResponse = await fetch('http://localhost:8000/upload-content', {
         method: 'POST',
         body: formData,
       });
       
       if (!uploadResponse.ok) {
-        throw new Error(`Upload failed with status: ${uploadResponse.status}`);
+        const errorData = await uploadResponse.json().catch(() => ({ detail: uploadResponse.statusText }));
+        throw new Error(errorData.detail || `Upload failed with status: ${uploadResponse.status}`);
       }
       
-      // Get the extracted content
       const extractedContent = await uploadResponse.text();
-      
-      // Store the content in sessionStorage for the swipe page to use
       sessionStorage.setItem('uploadedContent', extractedContent);
       
-      // Generate diagnostic questions based on the extracted content
-      const diagnosticResponse = await fetch('http://localhost:8000/generate-diagnostic', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content: extractedContent }),
-      });
-      
-      if (!diagnosticResponse.ok) {
-        throw new Error(`Diagnostic generation failed with status: ${diagnosticResponse.status}`);
-      }
-      
-      // Redirect to the swipe page
+      // No need to call /generate-diagnostic here, swipe page will do it.
       router.push('/swipe');
       
     } catch (err) {
@@ -95,102 +74,103 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-950 text-white">
-      <header className="bg-zinc-900 p-4 shadow-md">
-        <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">JiaranAI Learning Lab</h1>
-          <Link href="/" className="text-violet-400 hover:text-violet-300">
-            Home
-          </Link>
+    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-4">
+      <div className="absolute top-6 left-6">
+        <Link href="/" className="text-primary hover:underline flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-arrow-left"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+          Back to Home
+        </Link>
+      </div>
+      <div className="bg-card text-card-foreground p-8 rounded-xl shadow-2xl w-full max-w-lg border border-border">
+        <h2 className="text-3xl font-semibold text-center mb-8">Upload Your Learning Material</h2>
+        
+        <div className="mb-6 flex justify-center">
+          <div className="inline-flex rounded-md shadow-sm bg-secondary p-1">
+            <button
+              type="button"
+              onClick={() => setUseTextInput(false)}
+              className={`px-6 py-2 text-sm font-medium rounded-md transition-colors
+                ${!useTextInput ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-primary/10'}
+              `}
+            >
+              <FileText className="inline-block mr-2 h-4 w-4" /> Upload File
+            </button>
+            <button
+              type="button"
+              onClick={() => setUseTextInput(true)}
+              className={`px-6 py-2 text-sm font-medium rounded-md transition-colors
+                ${useTextInput ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-primary/10'}
+              `}
+            >
+              <Type className="inline-block mr-2 h-4 w-4" /> Paste Text
+            </button>
+          </div>
         </div>
-      </header>
 
-      <main className="flex-grow flex items-center justify-center p-4">
-        <div className="bg-zinc-900 p-6 rounded-2xl shadow-xl max-w-md w-full">
-          <h1 className="text-2xl font-bold mb-6 text-center">Upload Content</h1>
-          
-          {error && (
-            <div className="mb-4 p-3 bg-red-900/40 text-red-300 rounded-md border border-red-700">
-              {error}
+        {error && (
+          <div className="mb-6 p-3 bg-destructive/20 text-destructive rounded-md border border-destructive/50 text-sm">
+            {error}
+          </div>
+        )}
+        
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {!useTextInput ? (
+            <div className="space-y-2">
+              <label htmlFor="fileInput" className="sr-only">Upload a file</label>
+              <div className="relative border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/70 transition-colors cursor-pointer">
+                <input
+                  type="file"
+                  accept=".txt,.pdf"
+                  onChange={handleFileChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  id="fileInput"
+                  disabled={isUploading}
+                />
+                <UploadCloud className="mx-auto mb-3 text-muted-foreground h-12 w-12" />
+                <p className="text-lg font-medium text-foreground">
+                  Drag & drop or <span className="text-primary">click to upload</span>
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">Supports .txt and .pdf files.</p>
+                {file && (
+                  <p className="mt-3 text-sm text-primary font-medium bg-primary/10 py-1 px-2 rounded-md inline-block">
+                    Selected: {file.name}
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label htmlFor="textContentArea" className="sr-only">Enter text content</label>
+              <textarea
+                id="textContentArea"
+                value={textContent}
+                onChange={(e) => setTextContent(e.target.value)}
+                placeholder="Paste or type your lecture notes, articles, or any text material here..."
+                className="w-full h-48 p-4 border border-border rounded-lg bg-secondary text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary resize-none"
+                disabled={isUploading}
+              />
             </div>
           )}
           
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="flex items-center mb-4">
-              <button
-                type="button"
-                className={`flex-1 py-2 px-4 text-center ${!useTextInput ? 'bg-violet-700 text-white' : 'bg-zinc-800 text-zinc-400'} rounded-l-md`}
-                onClick={() => setUseTextInput(false)}
-              >
-                File Upload
-              </button>
-              <button
-                type="button"
-                className={`flex-1 py-2 px-4 text-center ${useTextInput ? 'bg-violet-700 text-white' : 'bg-zinc-800 text-zinc-400'} rounded-r-md`}
-                onClick={() => setUseTextInput(true)}
-              >
-                Text Input
-              </button>
-            </div>
-            
-            {!useTextInput ? (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-zinc-300">
-                  Upload a file (.txt or .pdf)
-                </label>
-                <div className="border border-zinc-700 p-6 rounded-lg text-center cursor-pointer hover:border-violet-500 transition-colors">
-                  <input
-                    type="file"
-                    accept=".txt,.pdf"
-                    onChange={handleFileChange}
-                    className="hidden"
-                    id="fileInput"
-                  />
-                  <label htmlFor="fileInput" className="cursor-pointer block">
-                    <UploadCloud className="mx-auto mb-2 text-zinc-500" size={40} />
-                    <p className="text-zinc-400">Drag & drop or click to upload</p>
-                    {file && (
-                      <p className="mt-2 text-violet-400">
-                        Selected file: {file.name}
-                      </p>
-                    )}
-                  </label>
-                </div>
+          <button
+            type="submit"
+            disabled={isUploading || (!useTextInput && !file) || (useTextInput && !textContent.trim())}
+            className="w-full py-3 px-4 bg-primary text-primary-foreground font-semibold rounded-lg transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+          >
+            {isUploading ? (
+              <div className="flex items-center justify-center">
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Processing Material...
               </div>
             ) : (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-zinc-300">
-                  Enter text content
-                </label>
-                <textarea
-                  value={textContent}
-                  onChange={(e) => setTextContent(e.target.value)}
-                  placeholder="Paste or type your content here..."
-                  className="w-full h-40 p-3 border border-zinc-700 rounded-lg bg-zinc-800 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                />
-              </div>
+              'Generate Learning Quiz'
             )}
-            
-            <button
-              type="submit"
-              disabled={isUploading}
-              className="w-full py-3 px-4 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl transition duration-200 disabled:bg-violet-900 disabled:text-violet-300"
-            >
-              {isUploading ? (
-                <div className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Processing...
-                </div>
-              ) : (
-                'Upload & Generate Questions'
-              )}
-            </button>
-          </form>
-        </div>
-      </main>
+          </button>
+        </form>
+      </div>
     </div>
   );
 } 

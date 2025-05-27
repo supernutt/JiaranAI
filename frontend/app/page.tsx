@@ -1,51 +1,81 @@
-import Image from "next/image";
 import Link from 'next/link';
+import { BookOpen, UploadCloud, MessageSquare, Zap, Brain, Users } from 'lucide-react';
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
-      <header className="p-6 border-b border-zinc-800">
-        <h1 className="text-3xl font-bold text-center text-white">JiaranAI <span className="text-violet-400">Learning Lab</span></h1>
+    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-4">
+      <header className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <Brain className="h-8 w-8 text-primary" />
+          <h1 className="text-2xl font-bold">JiaranAI <span className="font-light">Learning Lab</span></h1>
+        </div>
+        {/* Future: Dark mode toggle or user profile could go here */}
       </header>
 
-      <main className="flex-grow flex flex-col items-center justify-center p-8 md:p-16">
-        <div className="max-w-3xl w-full space-y-12">
-          <div className="text-center space-y-4">
-            <h2 className="text-4xl font-bold">Interactive AI Learning</h2>
-            <p className="text-xl text-zinc-400">Explore, learn, and test your knowledge with our AI-powered learning tools</p>
-          </div>
+      <main className="text-center space-y-10 max-w-4xl w-full">
+        <div className="space-y-3">
+          <h2 className="text-5xl font-bold tracking-tight">
+            Unlock Your Potential with <span className="text-primary">AI-Powered Learning</span>
+          </h2>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            Upload your course materials, get instant diagnostic quizzes, and engage in simulated classroom discussions to master any subject.
+          </p>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Link 
-              href="/upload" 
-              className="bg-zinc-800 hover:bg-zinc-700 p-6 rounded-xl border border-zinc-700 transition-all hover:shadow-lg hover:shadow-violet-900/20 group"
-            >
-              <h3 className="text-xl font-bold mb-2 group-hover:text-violet-400">Upload Content</h3>
-              <p className="text-zinc-400">Upload lecture notes or text to generate personalized learning materials</p>
-            </Link>
-            
-            <Link 
-              href="/swipe" 
-              className="bg-zinc-800 hover:bg-zinc-700 p-6 rounded-xl border border-zinc-700 transition-all hover:shadow-lg hover:shadow-violet-900/20 group"
-            >
-              <h3 className="text-xl font-bold mb-2 group-hover:text-violet-400">Swipe Diagnostics</h3>
-              <p className="text-zinc-400">Test your knowledge with AI-generated diagnostic questions</p>
-            </Link>
-            
-            <Link 
-              href="/classroom" 
-              className="bg-zinc-800 hover:bg-zinc-700 p-6 rounded-xl border border-zinc-700 transition-all hover:shadow-lg hover:shadow-violet-900/20 group"
-            >
-              <h3 className="text-xl font-bold mb-2 group-hover:text-violet-400">AI Classroom</h3>
-              <p className="text-zinc-400">Engage in discussions with AI characters to deepen your understanding</p>
-            </Link>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <FeatureCard
+            href="/upload"
+            icon={<UploadCloud className="h-10 w-10 mb-4 text-primary" />}
+            title="Upload Content"
+            description="Securely upload your lecture notes, PDFs, or text. We process it instantly."
+          />
+          <FeatureCard
+            href="/swipe"
+            icon={<Zap className="h-10 w-10 mb-4 text-primary" />}
+            title="Diagnostic Quizzes"
+            description="Test your understanding with adaptive, swipe-style questions generated from your content."
+          />
+          <FeatureCard
+            href="/classroom"
+            icon={<Users className="h-10 w-10 mb-4 text-primary" />}
+            title="AI Classroom"
+            description="Deepen your knowledge by discussing topics with our AI-powered virtual classmates."
+          />
+        </div>
+
+        <div className="pt-8">
+          <Link 
+            href="/upload" 
+            className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-3 px-8 rounded-lg text-lg transition-colors shadow-lg hover:shadow-primary/40"
+          >
+            Get Started Now
+          </Link>
         </div>
       </main>
 
-      <footer className="border-t border-zinc-800 p-6 text-center text-zinc-500 text-sm">
-        <p>© 2023 JiaranAI Learning Lab. All rights reserved.</p>
+      <footer className="absolute bottom-0 left-0 right-0 p-6 text-center text-muted-foreground text-sm">
+        <p>© {new Date().getFullYear()} JiaranAI Learning Lab. All rights reserved.</p>
       </footer>
     </div>
+  );
+}
+
+interface FeatureCardProps {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}
+
+function FeatureCard({ href, icon, title, description }: FeatureCardProps) {
+  return (
+    <Link 
+      href={href} 
+      className="bg-card text-card-foreground p-6 rounded-lg border border-border hover:border-primary/50 hover:shadow-xl hover:shadow-primary/20 transition-all transform hover:-translate-y-1 flex flex-col items-center text-center"
+    >
+      {icon}
+      <h3 className="text-xl font-semibold mb-2">{title}</h3>
+      <p className="text-sm text-muted-foreground">{description}</p>
+    </Link>
   );
 }
