@@ -1,7 +1,27 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, XCircle, Zap } from 'lucide-react';
+
+// Helper function to convert difficulty value to readable label
+const getDifficultyLabel = (difficulty) => {
+  if (!difficulty && difficulty !== 0) return 'Medium';
+  
+  const difficultyNum = parseFloat(difficulty);
+  if (difficultyNum <= 0.3) return 'Easy';
+  if (difficultyNum <= 0.6) return 'Medium';
+  return 'Hard';
+};
+
+// Helper function to get difficulty color class
+const getDifficultyColorClass = (difficulty) => {
+  if (!difficulty && difficulty !== 0) return 'text-gray-500';
+  
+  const difficultyNum = parseFloat(difficulty);
+  if (difficultyNum <= 0.3) return 'text-green-500';
+  if (difficultyNum <= 0.6) return 'text-yellow-500';
+  return 'text-red-500';
+};
 
 const SwipeCards = ({ questions, onAnswer }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -10,27 +30,25 @@ const SwipeCards = ({ questions, onAnswer }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const cardRef = useRef(null);
+  const startXRef = useRef(0);
 
   const currentQuestion = questions[currentQuestionIndex];
 
-  const handleMouseDown = (e) => {
-    if (showFeedback) return;
-    setIsDragging(true);
-    const startX = e.clientX;
+  // Clean up event listeners when component unmounts or when dragging state changes
+  useEffect(() => {
+    // Only add event listeners when actively dragging
+    if (!isDragging || showFeedback) return;
     
     const handleMouseMove = (e) => {
-      if (isDragging) {
         const currentX = e.clientX;
-        const offset = currentX - startX;
+      const offset = currentX - startXRef.current;
         setDragOffset(offset);
-      }
     };
     
     const handleMouseUp = (e) => {
-      if (!isDragging) return;
       setIsDragging(false);
       const endX = e.clientX;
-      const swipeDistance = endX - startX;
+      const swipeDistance = endX - startXRef.current;
       
       if (Math.abs(swipeDistance) > 80) {
         const selectedOption = swipeDistance < 0 ? 'a' : 'b';
@@ -39,33 +57,48 @@ const SwipeCards = ({ questions, onAnswer }) => {
       setDragOffset(0);
     };
     
+    // Add listeners to document only when dragging
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
     
+    // Clean up
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
+  }, [isDragging, showFeedback]);
+
+  const handleMouseDown = (e) => {
+    // Only start dragging if we're clicking directly on the card element
+    if (showFeedback || !cardRef.current || !cardRef.current.contains(e.target)) return;
+    
+    e.preventDefault(); // Prevent text selection
+    setIsDragging(true);
+    startXRef.current = e.clientX;
   };
 
   const handleTouchStart = (e) => {
-    if (showFeedback) return;
+    // Only start dragging if we're touching directly on the card element
+    if (showFeedback || !cardRef.current || !cardRef.current.contains(e.target)) return;
+    
     setIsDragging(true);
-    const startX = e.touches[0].clientX;
+    startXRef.current = e.touches[0].clientX;
+  };
+  
+  // Separate touch move/end handlers using useEffect
+  useEffect(() => {
+    if (!isDragging || showFeedback) return;
     
     const handleTouchMove = (e) => {
-      if (isDragging) {
         const currentX = e.touches[0].clientX;
-        const offset = currentX - startX;
+      const offset = currentX - startXRef.current;
         setDragOffset(offset);
-      }
     };
     
     const handleTouchEnd = (e) => {
-      if (!isDragging) return;
       setIsDragging(false);
       const endX = e.changedTouches[0].clientX;
-      const swipeDistance = endX - startX;
+      const swipeDistance = endX - startXRef.current;
       
       if (Math.abs(swipeDistance) > 80) {
         const selectedOption = swipeDistance < 0 ? 'a' : 'b';
@@ -81,7 +114,13 @@ const SwipeCards = ({ questions, onAnswer }) => {
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
     };
-  };
+  }, [isDragging, showFeedback]);
+
+  useEffect(() => {
+    // Reset state when questions change
+    setCurrentQuestionIndex(0);
+    setShowFeedback(false);
+  }, [questions]);
 
   const handleAnswer = (selectedOption) => {
     if (showFeedback || !currentQuestion) return;
@@ -90,16 +129,22 @@ const SwipeCards = ({ questions, onAnswer }) => {
     setIsCorrect(isAnswerCorrect);
     setShowFeedback(true);
     
-    onAnswer(currentQuestion.concept, isAnswerCorrect);
+    // Immediately call onAnswer so the parent can process the answer
+    onAnswer(currentQuestion, selectedOption);
     
+    // Set a timeout to hide feedback and transition to next question
     setTimeout(() => {
       setShowFeedback(false);
+      
+      // Small delay before moving to the next question to avoid UI jank
+      setTimeout(() => {
       if (currentQuestionIndex < questions.length - 1) {
         setCurrentQuestionIndex(currentQuestionIndex + 1);
       } else {
         console.log("End of quiz reached");
       }
-    }, 2000);
+      }, 50);
+    }, 1500); // Reduced from 2000ms to 1500ms for a snappier experience
   };
 
   if (!currentQuestion) {
@@ -120,6 +165,9 @@ const SwipeCards = ({ questions, onAnswer }) => {
       <div className="w-full text-center mb-2">
         <p className="text-sm text-muted-foreground">
           Concept: <span className="font-semibold text-primary">{currentQuestion.concept}</span>
+          {currentQuestion.difficulty && (
+            <span className="ml-2">• Difficulty: <span className={`font-semibold ${getDifficultyColorClass(currentQuestion.difficulty)}`}>{getDifficultyLabel(currentQuestion.difficulty)}</span></span>
+          )}
         </p>
       </div>
       
