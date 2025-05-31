@@ -1,13 +1,14 @@
 import Link from 'next/link';
-import { BookOpen, UploadCloud, MessageSquare, Zap, Brain, Users } from 'lucide-react';
+import { BookOpen, UploadCloud, MessageSquare, Zap, Users } from 'lucide-react';
+import Image from 'next/image';
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-4">
       <header className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <Brain className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-bold">JiaranAI <span className="font-light">Learning Lab</span></h1>
+          <Image src="/assets/logos/JiaranAI.png" alt="JiaranAI Logo" width={96} height={96} className="h-24 w-24 text-primary" />
+          <h1 className="text-2xl font-bold"><span className="font-light">Learning Lab</span></h1>
         </div>
         {/* Future: Dark mode toggle or user profile could go here */}
       </header>

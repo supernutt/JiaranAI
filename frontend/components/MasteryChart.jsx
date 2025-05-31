@@ -59,6 +59,32 @@ const MasteryChart = ({ history }) => {
     currentDistributionPerConcept[concept] = distributionData;
   });
 
+  // Calculate maximum probability value across all concepts to determine if we need to rescale
+  let maxProbabilityValue = 0.15; // Default upper bound
+  Object.values(currentDistributionPerConcept).forEach(data => {
+    data.forEach(point => {
+      if (point.probability > maxProbabilityValue) {
+        maxProbabilityValue = Math.min(Math.ceil(point.probability * 20) / 20, 0.3); // Round up to nearest 0.05, cap at 0.3
+      }
+    });
+  });
+
+  // Generate y-axis ticks based on the domain
+  const generateYAxisTicks = (min, max) => {
+    const ticks = [0.05, 0.1, 0.15];
+    // Add more ticks if maxProbabilityValue exceeds default range
+    if (max > 0.15) {
+      ticks.push(0.2);
+      if (max > 0.2) {
+        ticks.push(0.25);
+        if (max > 0.25) {
+          ticks.push(0.3);
+        }
+      }
+    }
+    return ticks;
+  };
+
   return (
     <div className="bg-card border border-border rounded-lg p-5 mt-2 md:mt-6 w-full dark:bg-gray-800 sticky top-24">
       <h3 className="text-lg font-medium mb-4 text-center text-gray-900 dark:text-white">Current Belief Distribution</h3>
@@ -89,8 +115,8 @@ const MasteryChart = ({ history }) => {
                         tick={{ fontSize: 10, fill: '#666' }}
                       />
                       <YAxis 
-                        domain={[0, 0.3]} 
-                        ticks={[0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]} 
+                        domain={[0.05, maxProbabilityValue]} 
+                        ticks={generateYAxisTicks(0.05, maxProbabilityValue)} 
                         label={{ value: 'Probability', angle: -90, position: 'insideLeft', offset: 10, fontSize: 12, fill: '#666' }}
                         tickFormatter={(tick) => tick.toFixed(2)}
                         tick={{ fontSize: 10, fill: '#666' }}

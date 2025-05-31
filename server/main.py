@@ -13,6 +13,29 @@ import re
 import math # Add math import for math.exp
 import PyPDF2 # Add for PDF processing
 
+# --- Manim Engine Imports ---
+from pathlib import Path
+import sys
+
+# Add manim_engine to sys.path to allow imports
+# Assuming main.py is in server/ and manim_engine is in server/manim_engine/
+MANIM_ENGINE_DIR = Path(__file__).parent / "manim_engine"
+if str(MANIM_ENGINE_DIR) not in sys.path:
+    sys.path.append(str(MANIM_ENGINE_DIR))
+
+try:
+    from animation_generator import AnimationGenerator
+    from utils import is_valid_scene
+    MANIM_IMPORTS_SUCCESSFUL = True
+except ImportError as e:
+    MANIM_IMPORTS_SUCCESSFUL = False
+    print(f"CRITICAL (server/main.py): Failed to import from manim_engine: {e}. Manim features will not work.")
+    # Define dummy classes/functions if import fails, so the server can still start (optional)
+    class AnimationGenerator:
+        def __init__(self, *args, **kwargs): pass
+        def render_scene(self, *args, **kwargs): return None
+    def is_valid_scene(*args, **kwargs): return False
+
 # --- Configuration ---
 # ENSURE This points to the ROOT-LEVEL concepts.json
 CONCEPTS_FILE_PATH = "../concepts.json"
@@ -37,11 +60,66 @@ app = FastAPI()
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Restrict to known origins
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Be explicit about allowed methods
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],  # Be explicit about allowed headers
+    expose_headers=["Content-Disposition"],  # Headers that can be exposed to the browser
+    max_age=600,  # Cache preflight requests for 10 minutes
 )
+
+# --- Manim Engine API Integration ---
+# Ensure this import is after 'app = FastAPI()' and other necessary initializations
+# if it depends on them, though typically router definition is self-contained.
+
+# Add manim_engine to sys.path if not already done (it should be near the top of the file)
+# MANIM_ENGINE_DIR = Path(__file__).parent / "manim_engine"
+# if str(MANIM_ENGINE_DIR) not in sys.path:
+# sys.path.append(str(MANIM_ENGINE_DIR))
+# ^^^ This block should already be present near the top for other Manim imports.
+
+from fastapi.staticfiles import StaticFiles # Make sure StaticFiles is imported
+
+# Attempt to import the router from the manim_engine package
+try:
+    from manim_engine.api_integration import router as manim_router
+    
+    # Initialize the task store before mounting the router
+    try:
+        from manim_engine.api_integration import load_tasks_from_file
+        load_tasks_from_file()
+        print("Successfully loaded Manim task store.")
+    except Exception as task_store_error:
+        print(f"Warning: Failed to initialize Manim task store: {task_store_error}")
+
+    app.include_router(manim_router)
+    print("Successfully included Manim router.")
+
+    # Static file serving for Manim videos
+    # MANIM_ENGINE_DIR is already defined at the top of this file
+    MANIM_VIDEOS_SERVE_DIR = MANIM_ENGINE_DIR / "output"
+    
+    # Create directory if it doesn't exist to prevent startup error for StaticFiles
+    os.makedirs(MANIM_VIDEOS_SERVE_DIR, exist_ok=True)
+    
+    # Mount at /manim_engine_output as suggested by comments, or /animations/video as per api_integration.py example
+    # Let's use /manim_engine_output to avoid conflict with /animations router prefix if videos are nested there
+    # The video_url construction in api_integration.py's generate_and_render_scene_task was:
+    # video_url = f"/animations/video/{video_path_for_url.as_posix()}"
+    # This implies the StaticFiles mount should be at "/animations/video" to match.
+    
+    # Let's align with the video_url construction in api_integration.py
+    # Serve files from manim_engine/output/ under /animations/video/
+    # e.g., manim_engine/output/videos/SceneName/480p15/video.mp4 
+    # will be accessible at http://localhost:8000/animations/video/videos/SceneName/480p15/video.mp4
+    app.mount("/animations/video", StaticFiles(directory=MANIM_VIDEOS_SERVE_DIR), name="manim_videos")
+    print(f"Static files for Manim videos mounted from {MANIM_VIDEOS_SERVE_DIR} at /animations/video.")
+
+except ImportError as e:
+    print(f"CRITICAL (server/main.py): Failed to import or include manim_router: {e}. Manim API endpoints will not be available.")
+except Exception as e:
+    print(f"CRITICAL (server/main.py): Error setting up Manim engine: {e}. Manim API endpoints may not work correctly.")
+# --- End Manim Engine API Integration ---
 
 # --- CONCEPTS_DB Handling ---
 def load_concepts_db() -> Dict:
@@ -77,6 +155,59 @@ def slugify(text: str) -> str:
     if not text: return "untitled_concept"
     return text
 # --- End CONCEPTS_DB Handling ---
+
+# --- Manim Test Render Helper ---
+async def trigger_manim_render(scene_name: str, quality: str = "low"):
+    if not MANIM_IMPORTS_SUCCESSFUL:
+        return {"error": "Manim engine components not loaded. Check server logs."}
+
+    # Determine paths relative to this main.py file
+    server_root = Path(__file__).parent
+    manim_engine_path = server_root / "manim_engine"
+    scenes_dir = manim_engine_path / "scenes"
+    output_dir = manim_engine_path / "output"
+
+    # Ensure output directory exists (AnimationGenerator might do this, but good to be sure)
+    (output_dir / "videos").mkdir(parents=True, exist_ok=True) # videos subdir is created by manim
+
+    try:
+        # Pass only the quality to the constructor
+        # The AnimationGenerator will set its own scenes_dir and output_dir
+        animator = AnimationGenerator(quality=quality)
+
+        # We still need to use the scenes_dir for is_valid_scene, 
+        # but it should be the one AnimationGenerator itself uses.
+        # For consistency, let's use the path derived in this function, 
+        # assuming AnimationGenerator correctly uses its relative paths.
+        # OR, ideally, is_valid_scene should also perhaps take an AnimationGenerator instance
+        # or know where to find scenes globally if not provided a path.
+        # For now, let's assume the scenes_dir path used here is correct for validation.
+        # Corrected call: is_valid_scene only takes scene_name
+        if not is_valid_scene(scene_name):
+            return {"error": f"Scene '{scene_name}' not found or invalid."}
+
+        # render_scene was a conceptual name, the actual method is generate_animation
+        # It takes scene_name and an optional file_name for the output stem.
+        # Let's use the scene_name as the file_name stem for simplicity.
+        output_filename_stem = scene_name # Or generate a more unique one if needed
+        video_path = animator.generate_animation(scene_name, file_name=output_filename_stem)
+
+        if video_path and Path(video_path).exists():
+            # Make the path relative to the AnimationGenerator's output_dir for the URL
+            # The video_path returned by generate_animation is absolute.
+            # The AnimationGenerator's output_dir is self.output_dir
+            ag_output_dir = animator.output_dir # This is manim_engine/output
+            relative_video_path = Path(video_path).relative_to(ag_output_dir)
+            return {
+                "message": f"Successfully rendered '{scene_name}'",
+                "video_path_on_server": video_path,
+                "accessible_at_manim_engine_static_output": str(relative_video_path)
+            }
+        else:
+            return {"error": f"Failed to render '{scene_name}' or video path not found."}
+    except Exception as e:
+        print(f"Error during Manim render for '{scene_name}': {e}")
+        return {"error": f"Exception during Manim render: {str(e)}"}
 
 # --- Pydantic Models ---
 class DiagnosticRequest(BaseModel):
@@ -760,8 +891,18 @@ async def get_next_question_batch(user_id: str, count: int = 5):
 
     return generated_questions
 
-if __name__ == "__main__":
-    # Initialize CONCEPTS_DB by loading or creating the file on startup
-    _ = load_concepts_db()
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# --- Health Check & Manim Test ---
+@app.get("/health", tags=["System"])
+async def health_check():
+    return {"status": "ok", "manim_imports_successful": MANIM_IMPORTS_SUCCESSFUL}
+
+@app.get("/test-manim-render")
+async def test_manim_render_route():
+    return await trigger_manim_render("WriteHello")
+
+# --- Potentially add uvicorn startup if this file is run directly ---
+# if __name__ == "__main__":
+#     import uvicorn
+#     # Note: manim_engine.api_integration also runs on 8008 by default.
+#     # Change port if running both simultaneously from the same machine.
+#     uvicorn.run(app, host="0.0.0.0", port=8000)

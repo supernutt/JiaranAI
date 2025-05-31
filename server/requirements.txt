@@ -1,0 +1,22 @@
+# Core dependencies
+fastapi>=0.103.0,<0.104.0
+uvicorn[standard]>=0.23.0,<0.24.0
+python-multipart>=0.0.6  # For form data handling in FastAPI
+pydantic>=2.4.0,<3.0.0   # Type validation
+
+# AI/ML
+openai>=1.1.0,<2.0.0     # OpenAI API
+anthropic>=0.5.0         # Anthropic Claude API (optional)
+
+# File handling
+python-dotenv>=1.0.0     # Environment variable management
+PyPDF2>=3.0.0            # PDF processing
+filelock>=3.12.2         # Thread-safe file operations
+
+# Manim 
+manim>=0.17.3            # Mathematical animation engine
+
+# System utilities
+requests>=2.31.0         # HTTP requests
+
+# Add other server-side Python dependencies here 
