@@ -300,7 +300,7 @@ def create_retry_prompt_for_code_generation(
     Create a modified prompt for retrying code generation based on the error and template info.
     """
     cleaned_error = clean_error_trace(error_message)
-
+    
     # --- BEGIN: Insert Manim asset catalog and explicit warnings ---
     manim_asset_catalog = '''
 **AVAILABLE MANIM COMPONENTS (v0.18.1):**
@@ -461,7 +461,7 @@ def create_retry_prompt_for_rendering_error(
     This assumes the code was syntactically valid but failed during Manim execution.
     """
     cleaned_error = clean_error_trace(error_message)
-
+    
     # --- BEGIN: Insert Manim asset catalog and explicit warnings ---
     manim_asset_catalog = '''
 **AVAILABLE MANIM COMPONENTS (v0.18.1):**

@@ -1,7 +1,0 @@
-# This file is used internally by FFMPEG.
-file 'file:/Users/supphanatanantachaisophon/Desktop/Jiaran.ai/ai-learning-lab/server/manim_engine/output/videos/WriteHello/480p15/partial_movie_files/WriteHello/1185818338_3874219539_223132457.mp4'
-file 'file:/Users/supphanatanantachaisophon/Desktop/Jiaran.ai/ai-learning-lab/server/manim_engine/output/videos/WriteHello/480p15/partial_movie_files/WriteHello/624642324_4217992463_3934607081.mp4'
-file 'file:/Users/supphanatanantachaisophon/Desktop/Jiaran.ai/ai-learning-lab/server/manim_engine/output/videos/WriteHello/480p15/partial_movie_files/WriteHello/624642324_2477810401_3554171132.mp4'
-file 'file:/Users/supphanatanantachaisophon/Desktop/Jiaran.ai/ai-learning-lab/server/manim_engine/output/videos/WriteHello/480p15/partial_movie_files/WriteHello/624642324_4217992463_4063787164.mp4'
-file 'file:/Users/supphanatanantachaisophon/Desktop/Jiaran.ai/ai-learning-lab/server/manim_engine/output/videos/WriteHello/480p15/partial_movie_files/WriteHello/624642324_2848339010_1128774208.mp4'
-file 'file:/Users/supphanatanantachaisophon/Desktop/Jiaran.ai/ai-learning-lab/server/manim_engine/output/videos/WriteHello/480p15/partial_movie_files/WriteHello/624642324_3394500337_3278671325.mp4'

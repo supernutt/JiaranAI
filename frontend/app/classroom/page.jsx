@@ -3,32 +3,43 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Send, MessageSquare, User, Bot, Loader2, Sparkles, Lightbulb, Users, Film, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { marked } from 'marked';
 
-const AI_AVATARS = {
-  Sophia: <Sparkles className="h-full w-full text-pink-400" />,
-  Leo: <Lightbulb className="h-full w-full text-blue-400" />,
-  Maya: <Users className="h-full w-full text-green-400" />,
-};
+// API Base URL - can be updated based on environment
+const API_BASE_URL = 'http://localhost:8000';
 
+// These aren't needed with the new avatar URLs from the API
+// const AI_AVATARS = {
+//   Sophia: <Sparkles className="h-full w-full text-pink-400" />,
+//   Leo: <Lightbulb className="h-full w-full text-blue-400" />,
+//   Maya: <Users className="h-full w-full text-green-400" />,
+// };
+
+// Update the fallback response to match the new message format
 const FALLBACK_CLASSROOM_RESPONSE = {
-  discussion: [
-    { speaker: "Sophia", message: "Hello! I'm Sophia. I'm ready to discuss how AI can enhance creative writing. What are your thoughts?" },
-    { speaker: "Leo", message: "Hi, I'm Leo! I believe AI could be a great tool for brainstorming and overcoming writer's block. For example, generating plot ideas!" },
-    { speaker: "Maya", message: "I agree, Leo! Maya here. And AI can also help with editing, like checking grammar or suggesting stylistic improvements." },
-    { speaker: "User", message: "That's interesting! I was wondering if AI could help in developing character arcs?" },
-    { speaker: "Sophia", message: "Absolutely! AI could analyze existing character developments in literature and suggest patterns or even generate potential dialogues for a character based on their defined traits." },
+  messages: [
+    { author: "Sophia", text: "Hello! I'm Sophia. I'm ready to discuss how AI can enhance creative writing. What are your thoughts?" },
+    { author: "Leo", text: "Hi, I'm Leo! I believe AI could be a great tool for brainstorming and overcoming writer's block. For example, generating plot ideas!" },
+    { author: "Maya", text: "I agree, Leo! Maya here. And AI can also help with editing, like checking grammar or suggesting stylistic improvements." },
   ],
 };
 
 const POLLING_INTERVAL = 3000; // 3 seconds
 const MAX_POLL_ATTEMPTS = 20; // Max attempts (e.g., 20 * 3s = 1 minute)
+const MAX_MESSAGE_LENGTH = 500; // Maximum characters for user input
 
 export default function ClassroomPage() {
+  // Original state
   const [topic, setTopic] = useState('');
-  const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
+  
+  // New state for dynamic classroom
+  const [sessionId, setSessionId] = useState(null);
+  const [roster, setRoster] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
 
   // --- State for Manim video generation ---
   const [videoPrompt, setVideoPrompt] = useState('');
@@ -52,6 +63,10 @@ export default function ClassroomPage() {
   }, [messages]);
 
   const handleInputChange = (e) => {
+    setInput(e.target.value);
+  };
+
+  const handleTopicChange = (e) => {
     setTopic(e.target.value);
   };
 
@@ -59,36 +74,121 @@ export default function ClassroomPage() {
     setVideoPrompt(e.target.value);
   };
 
+  // New function for starting a classroom session
+  const startClassroom = async (topic) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/classroom/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(errorData.detail || 'Failed to start classroom session.');
+      }
+      const data = await res.json();
+      setSessionId(data.sessionId);
+      setRoster(data.roster);
+      setMessages([]); // reset messages
+      
+      // Add a welcome message from Jiaran
+      const teacherData = data.roster.find(p => p.name === "Jiaran");
+      if (teacherData) {
+        setMessages([
+          { 
+            author: "You", 
+            text: `Let's discuss: ${topic}`,
+            avatar_url: null 
+          },
+          { 
+            author: "Jiaran", 
+            text: `Welcome to our classroom! Let's explore the topic of "${topic}". What would you like to know?`,
+            avatar_url: teacherData.avatarUrl
+          }
+        ]);
+      }
+    } catch (err) {
+      console.error('Error starting classroom:', err);
+      setError(err.message || 'An error occurred starting the classroom.');
+      // Fall back to the old discussion format if needed
+      const userTopicMessage = { author: 'You', text: `Let's discuss: ${topic}`, avatar_url: null };
+      setMessages([
+        userTopicMessage, 
+        ...FALLBACK_CLASSROOM_RESPONSE.messages.map(item => ({ 
+          ...item, 
+          avatar_url: null
+        }))
+      ]);
+    } finally {
+      setIsLoading(false);
+      setTopic('');
+    }
+  };
+  
+  // New function for sending a user message
+  const sendTurn = async (userMessage) => {
+    if (!sessionId) {
+      setError('No active classroom session. Please start a new topic.');
+      return;
+    }
+    
+    // Limit message length
+    if (userMessage.length > MAX_MESSAGE_LENGTH) {
+      userMessage = userMessage.substring(0, MAX_MESSAGE_LENGTH);
+    }
+    
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/classroom/turn/${sessionId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userMessage }),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(errorData.detail || 'Failed to send message.');
+      }
+      
+      const data = await res.json();
+      
+      // Add user message and AI responses to the messages array
+      setMessages(prev => [
+        ...prev, 
+        { author: "You", text: userMessage, avatar_url: null },
+        ...data.messages.map(m => ({
+          author: m.author,
+          text: m.text,
+          avatar_url: m.avatar_url
+        }))
+      ]);
+      
+      setInput("");
+    } catch (err) {
+      console.error('Error sending message:', err);
+      setError(err.message || 'An error occurred sending your message.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Update existing handleSubmit to use startClassroom
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!topic.trim()) {
       setError('Please enter a topic to discuss.');
       return;
     }
-    setIsLoading(true);
-    setError(null);
-    const userTopicMessage = { speaker: 'User', message: `Let's discuss: ${topic}` };
-    setMessages([userTopicMessage]);
-    try {
-      const response = await fetch('http://localhost:8000/generate-classroom', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic }),
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-        throw new Error(errorData.detail || 'Failed to start classroom discussion.');
-      }
-      const data = await response.json();
-      const formattedDiscussion = data.discussion.map(item => ({ speaker: item.name, message: item.statement }));
-      setMessages(prevMessages => [...prevMessages, ...formattedDiscussion]);
-    } catch (err) {
-      console.error('Error fetching classroom discussion:', err);
-      setError(err.message || 'An error occurred. Using fallback discussion.');
-      setMessages(prevMessages => [...prevMessages, ...FALLBACK_CLASSROOM_RESPONSE.discussion]);
-    } finally {
-      setIsLoading(false);
-      setTopic('');
+    await startClassroom(topic);
+  };
+
+  // Handle user message submission
+  const handleMessageSubmit = (e) => {
+    e.preventDefault();
+    if (input.trim()) {
+      sendTurn(input);
     }
   };
 
@@ -101,7 +201,7 @@ export default function ClassroomPage() {
       return;
     }
     try {
-      const response = await fetch(`http://localhost:8000${statusUrl}`); // Prepend base URL
+      const response = await fetch(`${API_BASE_URL}${statusUrl}`); // Prepend base URL
       if (!response.ok) {
         // Handle 404 specially - the task might have been cleaned up or never existed
         if (response.status === 404) {
@@ -124,7 +224,7 @@ export default function ClassroomPage() {
 
       if (data.status === "SUCCESS") {
         if (data.result_url) {
-          setVideoResultUrl(`http://localhost:8000${data.result_url}`); // Prepend base for video src
+          setVideoResultUrl(`${API_BASE_URL}${data.result_url}`); // Prepend base for video src
           setVideoError(null);
         } else {
           setVideoError("Task succeeded but no video URL was provided.");
@@ -215,7 +315,7 @@ export default function ClassroomPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/animations/generate', {
+      const response = await fetch(`${API_BASE_URL}/animations/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -250,6 +350,15 @@ export default function ClassroomPage() {
     // No setIsVideoLoading(false) here; it's handled by polling logic or error in initiation
   };
 
+  // Reset classroom session function
+  const resetClassroom = () => {
+    setSessionId(null);
+    setRoster([]);
+    setMessages([]);
+    setInput('');
+    setError(null);
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-start p-4 pt-16 md:pt-24">
       <div className="absolute top-6 left-6">
@@ -267,6 +376,14 @@ export default function ClassroomPage() {
         <p className="text-md text-muted-foreground max-w-xl">
           Enter a topic and engage in a simulated discussion with our AI learning assistants.
         </p>
+        {sessionId && (
+          <button 
+            onClick={resetClassroom}
+            className="mt-2 px-3 py-1 text-sm bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition-colors"
+          >
+            Start New Discussion
+          </button>
+        )}
       </header>
 
       <div className="bg-card text-card-foreground rounded-xl shadow-2xl w-full max-w-2xl border border-border flex flex-col" style={{height: '70vh'}}>
@@ -280,23 +397,34 @@ export default function ClassroomPage() {
             </div>
           )}
           {messages.map((msg, index) => (
-            <div key={index} className={`flex items-start gap-3 ${msg.speaker === 'User' ? 'justify-end' : 'justify-start'}`}>
-              {msg.speaker !== 'User' && (
-                <div className="flex-shrink-0 h-10 w-10 rounded-full bg-secondary flex items-center justify-center border border-border shadow-sm">
-                  {AI_AVATARS[msg.speaker] || <Bot className="h-6 w-6 text-muted-foreground" />}
+            <div key={index} className={`flex items-start gap-3 ${msg.author === 'You' ? 'justify-end' : 'justify-start'}`}>
+              {msg.author !== 'You' && (
+                <div className="flex-shrink-0 h-10 w-10 rounded-full bg-secondary flex items-center justify-center border border-border shadow-sm overflow-hidden">
+                  {msg.avatar_url ? (
+                    <img 
+                      src={msg.avatar_url} 
+                      alt={msg.author} 
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Bot className="h-6 w-6 text-muted-foreground" />
+                  )}
                 </div>
               )}
               <div 
                 className={`max-w-[70%] p-3 rounded-lg shadow-sm ${ 
-                  msg.speaker === 'User' 
+                  msg.author === 'You' 
                     ? 'bg-primary text-primary-foreground rounded-br-none' 
                     : 'bg-secondary text-secondary-foreground rounded-bl-none'
                 }`}
               >
-                {msg.speaker !== 'User' && <p className="text-xs font-semibold text-primary mb-1">{msg.speaker}</p>}
-                <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                {msg.author !== 'You' && <p className="text-xs font-semibold text-primary mb-1">{msg.author}</p>}
+                <div 
+                  className="text-sm whitespace-pre-wrap"
+                  dangerouslySetInnerHTML={{ __html: marked(msg.text) }}
+                />
               </div>
-              {msg.speaker === 'User' && (
+              {msg.author === 'You' && (
                 <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center border border-border shadow-sm">
                   <User className="h-6 w-6 text-white" />
                 </div>
@@ -304,7 +432,7 @@ export default function ClassroomPage() {
             </div>
           ))}
           <div ref={messagesEndRef} /> 
-          {isLoading && messages.length > 0 && (
+          {isLoading && messages.length === 0 && (
             <div className="flex justify-center py-4">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
@@ -315,11 +443,13 @@ export default function ClassroomPage() {
           {error && (
             <p className="text-destructive text-xs mb-2 px-1">{error}</p>
           )}
+          {!sessionId ? (
+            // Topic submission form
           <form onSubmit={handleSubmit} className="flex items-center gap-3">
             <input
               type="text"
               value={topic}
-              onChange={handleInputChange}
+                onChange={handleTopicChange}
               placeholder="Enter a topic to discuss, e.g., 'The Future of AI'..."
               className="flex-grow p-3 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary shadow-sm disabled:opacity-50"
               disabled={isLoading}
@@ -332,6 +462,26 @@ export default function ClassroomPage() {
               {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
             </button>
           </form>
+          ) : (
+            // Message input form for ongoing conversation
+            <form onSubmit={handleMessageSubmit} className="flex items-center gap-3">
+              <input
+                type="text"
+                value={input}
+                onChange={handleInputChange}
+                placeholder="Type a question..."
+                className="flex-grow p-3 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary shadow-sm disabled:opacity-50"
+                disabled={isLoading}
+              />
+              <button 
+                type="submit" 
+                disabled={isLoading || !input.trim()}
+                className="p-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-card disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+              >
+                {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+              </button>
+            </form>
+          )}
         </div>
       </div>
 

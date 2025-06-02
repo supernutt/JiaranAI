@@ -1,9 +1,0 @@
-# This file is used internally by FFMPEG.
-file 'file:/Users/supphanatanantachaisophon/Desktop/Jiaran.ai/ai-learning-lab/server/manim_engine/output/videos/VisuallyExplains/480p15/partial_movie_files/VisuallyExplains/1185818338_1315004857_223132457.mp4'
-file 'file:/Users/supphanatanantachaisophon/Desktop/Jiaran.ai/ai-learning-lab/server/manim_engine/output/videos/VisuallyExplains/480p15/partial_movie_files/VisuallyExplains/624642324_4217992463_3828468245.mp4'
-file 'file:/Users/supphanatanantachaisophon/Desktop/Jiaran.ai/ai-learning-lab/server/manim_engine/output/videos/VisuallyExplains/480p15/partial_movie_files/VisuallyExplains/624642324_4022891525_2214902987.mp4'
-file 'file:/Users/supphanatanantachaisophon/Desktop/Jiaran.ai/ai-learning-lab/server/manim_engine/output/videos/VisuallyExplains/480p15/partial_movie_files/VisuallyExplains/624642324_4217992463_90564507.mp4'
-file 'file:/Users/supphanatanantachaisophon/Desktop/Jiaran.ai/ai-learning-lab/server/manim_engine/output/videos/VisuallyExplains/480p15/partial_movie_files/VisuallyExplains/624642324_3225186566_115145212.mp4'
-file 'file:/Users/supphanatanantachaisophon/Desktop/Jiaran.ai/ai-learning-lab/server/manim_engine/output/videos/VisuallyExplains/480p15/partial_movie_files/VisuallyExplains/624642324_4217992463_2523694424.mp4'
-file 'file:/Users/supphanatanantachaisophon/Desktop/Jiaran.ai/ai-learning-lab/server/manim_engine/output/videos/VisuallyExplains/480p15/partial_movie_files/VisuallyExplains/624642324_3811152147_3096250331.mp4'
-file 'file:/Users/supphanatanantachaisophon/Desktop/Jiaran.ai/ai-learning-lab/server/manim_engine/output/videos/VisuallyExplains/480p15/partial_movie_files/VisuallyExplains/624642324_3394500337_3968961708.mp4'
