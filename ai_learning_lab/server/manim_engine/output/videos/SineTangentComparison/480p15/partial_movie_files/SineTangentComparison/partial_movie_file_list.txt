@@ -1,0 +1,12 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/server/manim_engine/output/videos/SineTangentComparison/480p15/partial_movie_files/SineTangentComparison/1185818338_3420539401_223132457.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/server/manim_engine/output/videos/SineTangentComparison/480p15/partial_movie_files/SineTangentComparison/624642324_280324753_690389200.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/server/manim_engine/output/videos/SineTangentComparison/480p15/partial_movie_files/SineTangentComparison/624642324_3728893154_422065066.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/server/manim_engine/output/videos/SineTangentComparison/480p15/partial_movie_files/SineTangentComparison/624642324_464163844_2949356656.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/server/manim_engine/output/videos/SineTangentComparison/480p15/partial_movie_files/SineTangentComparison/624642324_3885654555_1113216462.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/server/manim_engine/output/videos/SineTangentComparison/480p15/partial_movie_files/SineTangentComparison/624642324_3598490474_1756754716.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/server/manim_engine/output/videos/SineTangentComparison/480p15/partial_movie_files/SineTangentComparison/624642324_996829760_3063562371.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/server/manim_engine/output/videos/SineTangentComparison/480p15/partial_movie_files/SineTangentComparison/624642324_3510617699_1364062808.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/server/manim_engine/output/videos/SineTangentComparison/480p15/partial_movie_files/SineTangentComparison/624642324_2191417435_1486161209.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/server/manim_engine/output/videos/SineTangentComparison/480p15/partial_movie_files/SineTangentComparison/624642324_497783749_526980026.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/server/manim_engine/output/videos/SineTangentComparison/480p15/partial_movie_files/SineTangentComparison/624642324_1704852926_240375388.mp4'
