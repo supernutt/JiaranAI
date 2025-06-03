@@ -1,0 +1,2 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/TanAndTanhGraphs/480p15/partial_movie_files/TanAndTanhGraphs/1185818338_2422126847_120004496.mp4'

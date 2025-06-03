@@ -1,0 +1,10 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/TrigonometricFunctions/480p15/partial_movie_files/TrigonometricFunctions/1185818338_2387679077_223132457.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/TrigonometricFunctions/480p15/partial_movie_files/TrigonometricFunctions/624642324_2308185149_1049660471.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/TrigonometricFunctions/480p15/partial_movie_files/TrigonometricFunctions/624642324_3890345977_1878306150.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/TrigonometricFunctions/480p15/partial_movie_files/TrigonometricFunctions/624642324_3762913772_1734903351.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/TrigonometricFunctions/480p15/partial_movie_files/TrigonometricFunctions/624642324_3890345977_1838675946.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/TrigonometricFunctions/480p15/partial_movie_files/TrigonometricFunctions/624642324_2720527882_2973749064.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/TrigonometricFunctions/480p15/partial_movie_files/TrigonometricFunctions/624642324_3890345977_1769959666.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/TrigonometricFunctions/480p15/partial_movie_files/TrigonometricFunctions/624642324_1491253025_104343370.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/TrigonometricFunctions/480p15/partial_movie_files/TrigonometricFunctions/624642324_3890345977_180193901.mp4'

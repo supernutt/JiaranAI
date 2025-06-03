@@ -103,5 +103,20 @@
         "title": "Admin Essentials",
         "description": "AI-derived group: Admin Essentials. Specific concept example: Employer Identification Number.",
         "difficulty": 0.5
+    },
+    "Atomic Physics Phenomena": {
+        "title": "Atomic Physics Phenomena",
+        "description": "AI-derived group: Atomic Physics Phenomena. Specific concept example: Dark Lines in Solar Spectrum.",
+        "difficulty": 0.5
+    },
+    "Quantum Physics": {
+        "title": "Quantum Physics",
+        "description": "AI-derived group: Quantum Physics. Specific concept example: Photon Emission.",
+        "difficulty": 0.5
+    },
+    "Quantum Mechanics": {
+        "title": "Quantum Mechanics",
+        "description": "AI-derived group: Quantum Mechanics. Specific concept example: Atomic Models.",
+        "difficulty": 0.5
     }
 }

@@ -40,6 +40,12 @@ class Message:
 
 
 @dataclass
+class Turn:
+    teacher: str
+    students: List[Message]
+
+
+@dataclass
 class ClassroomSession:
     """
     One live classroom instance.  Holds state between turns.
