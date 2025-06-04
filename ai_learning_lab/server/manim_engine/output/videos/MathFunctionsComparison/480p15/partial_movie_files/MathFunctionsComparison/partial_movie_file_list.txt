@@ -1,0 +1,9 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/MathFunctionsComparison/480p15/partial_movie_files/MathFunctionsComparison/1185818338_2478290250_223132457.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/MathFunctionsComparison/480p15/partial_movie_files/MathFunctionsComparison/624642324_3890345977_992860802.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/MathFunctionsComparison/480p15/partial_movie_files/MathFunctionsComparison/624642324_833736115_3820732535.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/MathFunctionsComparison/480p15/partial_movie_files/MathFunctionsComparison/624642324_3890345977_2195047112.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/MathFunctionsComparison/480p15/partial_movie_files/MathFunctionsComparison/624642324_4005817688_1812700265.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/MathFunctionsComparison/480p15/partial_movie_files/MathFunctionsComparison/624642324_1959358871_877705882.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/MathFunctionsComparison/480p15/partial_movie_files/MathFunctionsComparison/624642324_44330840_861921806.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/MathFunctionsComparison/480p15/partial_movie_files/MathFunctionsComparison/624642324_1141282389_2459695581.mp4'

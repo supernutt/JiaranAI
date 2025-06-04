@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Gotham Font Face for Gotham-Bold.otf */
+@font-face {
+  font-family: 'Gotham';
+  font-weight: 700; /* Bold */
+  font-style: normal;
+  src: url('/fonts/Gotham-Bold.otf') format('opentype');
+  font-display: swap;
+}
+
 @layer base {
 :root {
     --background: 0 0% 100%;
@@ -71,4 +80,43 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
   }
+}
+
+.classroom-background-overlay::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url('/assets/classroom.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  opacity: 0.6; /* 40% transparent */
+  z-index: -1;
+}
+
+.diagnostic-hallway-background-overlay::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url('/assets/diagnostic-hallway.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.7; /* Increased visibility while maintaining transparency */
+  z-index: -1;
+}
+
+.diagnostic-hallway-background-overlay {
+  background-image: url('/assets/diagnostic-hallway.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: scroll;
 }

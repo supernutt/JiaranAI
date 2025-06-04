@@ -1,0 +1,6 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/MathFunctionShapesComparison/480p15/partial_movie_files/MathFunctionShapesComparison/1185818338_3796814053_223132457.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/MathFunctionShapesComparison/480p15/partial_movie_files/MathFunctionShapesComparison/624642324_2106966691_3059072975.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/MathFunctionShapesComparison/480p15/partial_movie_files/MathFunctionShapesComparison/624642324_3890345977_2899991785.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/MathFunctionShapesComparison/480p15/partial_movie_files/MathFunctionShapesComparison/624642324_1280275506_2733982629.mp4'
+file 'file:/Users/supphanatanantachaisophon/Desktop/JiaranAI/ai_learning_lab/server/manim_engine/output/videos/MathFunctionShapesComparison/480p15/partial_movie_files/MathFunctionShapesComparison/624642324_3890345977_125876163.mp4'

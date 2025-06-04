@@ -7,7 +7,7 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional, Any
 
 
 @dataclass
@@ -57,6 +57,7 @@ class ClassroomSession:
     scores: Dict[str, int] = field(default_factory=dict)
     phase: str = "lecture"  # warmup | lecture | quiz | wrap
     summary: str = ""  # running conversation summary
+    mastery_data: Optional[Dict[str, Any]] = None  # Simple field for mastery data
 
     # convenience
     def add_msgs(self, msgs: List[Message]) -> None:

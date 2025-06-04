@@ -20,7 +20,7 @@ router = APIRouter()
 CONCEPTS_FILE_PATH = str(Path(__file__).parent.parent.parent / "concepts.json")
 FUZZY_MATCH_CUTOFF = 0.7
 MAX_CONCEPTS_TO_EXTRACT = 5
-MAX_QUESTIONS_TO_RETURN = 5
+MAX_QUESTIONS_TO_RETURN = 10
 DEFAULT_NEW_CONCEPT_DIFFICULTY = 0.5
 
 # Diagnostic engine constants
@@ -112,20 +112,34 @@ async def generate_diagnostic(request: DiagnosticRequest):
         return _get_mock_diagnostic_response()
 
     uploaded_content = request.content
-    concepts_db = load_concepts_db()
-    concepts_db_changed = False
+    # Truncate content to avoid exceeding token limits
+    MAX_CONTENT_LENGTH = 45000 
+    if len(uploaded_content) > MAX_CONTENT_LENGTH:
+        uploaded_content = uploaded_content[:MAX_CONTENT_LENGTH]
+        print(f"Warning (diagnostic/generate-diagnostic): Uploaded content was truncated to {MAX_CONTENT_LENGTH} characters.")
+
+    # Initialize a new concepts database for this session
+    # This will be used to overwrite concepts.json for session-specific concepts
+    session_concepts_db: Dict[str, ConceptMetadata] = {}
     generated_questions_for_response: List[DiagnosticQuestion] = []
 
     try:
         prompt = (
-            f"Analyze the following content and generate up to {MAX_QUESTIONS_TO_RETURN} diagnostic questions. "
+            f"Analyze the following content and generate EXACTLY {MAX_QUESTIONS_TO_RETURN} diagnostic questions. "
+            f"It's crucial to generate all {MAX_QUESTIONS_TO_RETURN} questions even if the content covers fewer than {MAX_QUESTIONS_TO_RETURN} distinct concepts. "
+            f"If needed, create multiple questions for the same concept at different difficulty levels or focusing on different aspects. "
             f"For each question, identify the specific 'concept' it assesses and assign it to a broader 'group'. "
             f"Group related concepts under meaningful umbrella terms. For example, group 'delusion', 'obsession', and 'sleep disorders' under 'Mental Health Concepts'. "
             f"If a concept doesn't belong to any existing group, create a new, sensible group name based on the topic. "
             f"Ensure the 'group' name is concise and suitable as a category title. "
             f"The specific 'concept' field should name the granular topic the question is about, while the 'group' field is the broader category. "
             f"For each question, assign a 'difficulty' value between 0.1 (very easy) and 0.9 (very hard). Vary the difficulty levels across questions. "
-            f"Respond with a valid JSON object with a single key 'questions_data', which is a list of objects. "
+            f"If the content doesn't have {MAX_QUESTIONS_TO_RETURN} distinct concepts, create variations by: "
+            f"1) Asking the same concept at different difficulty levels "
+            f"2) Focusing on different aspects/applications of the same concept "
+            f"3) Creating prerequisite or follow-up questions related to the main concepts "
+            f"IMPORTANT: You must generate exactly {MAX_QUESTIONS_TO_RETURN} questions. Do not generate fewer. "
+            f"Respond with a valid JSON object with a single key 'questions_data', which is a list of exactly {MAX_QUESTIONS_TO_RETURN} objects. "
             f"Each object in the list must have the following fields: "
             f"  'concept' (specific topic, e.g., 'Derivative Power Rule'), "
             f"  'group' (umbrella term, e.g., 'Calculus Fundamentals'), "
@@ -143,7 +157,7 @@ async def generate_diagnostic(request: DiagnosticRequest):
         llm_response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are an expert in educational content analysis and question generation. Strictly adhere to the requested JSON format. Ensure group names are well-chosen umbrella terms."},
+                {"role": "system", "content": f"You are an expert in educational content analysis and question generation. Strictly adhere to the requested JSON format. Ensure group names are well-chosen umbrella terms. CRITICAL: You must generate exactly {MAX_QUESTIONS_TO_RETURN} questions - no more, no less."},
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"}
@@ -187,14 +201,15 @@ async def generate_diagnostic(request: DiagnosticRequest):
             normalized_group = "General Concepts"
         normalized_group = normalized_group.title()
 
-        if normalized_group not in concepts_db:
-            concepts_db[normalized_group] = {
-                "title": normalized_group,
-                "description": f"AI-derived group: {normalized_group}. Specific concept example: {original_concept_name}.",
-                "difficulty": DEFAULT_NEW_CONCEPT_DIFFICULTY
-            }
-            concepts_db_changed = True
-            print(f"Info (diagnostic/generate-diagnostic): New group '{normalized_group}' added to CONCEPTS_DB.")
+        # Add to this session's concepts_db if not already present
+        # This ensures concepts.json will only contain items from this session
+        if normalized_group not in session_concepts_db:
+            session_concepts_db[normalized_group] = ConceptMetadata(
+                title=normalized_group,
+                description=f"AI-derived group: {normalized_group}. Specific concept example: {original_concept_name}.",
+                difficulty=DEFAULT_NEW_CONCEPT_DIFFICULTY # Or use difficulty from item_data if a group should have an average difficulty? For now, default.
+            )
+            print(f"Info (diagnostic/generate-diagnostic): New group '{normalized_group}' added to this session's concept list.")
 
         correct_answer = item_data["correct_answer"].lower()
         if correct_answer not in ["a", "b"]:
@@ -216,8 +231,38 @@ async def generate_diagnostic(request: DiagnosticRequest):
             print(f"Error (diagnostic/generate-diagnostic): Pydantic validation failed for item: {item_data}. Error: {pydantic_error}")
             continue
             
-    if concepts_db_changed:
-        save_concepts_db(concepts_db)
+    # Overwrite concepts.json with only the concepts generated in this session
+    # Convert ConceptMetadata objects to dictionaries for JSON serialization
+    concepts_to_save = {k: v.model_dump() for k, v in session_concepts_db.items()} 
+    save_concepts_db(concepts_to_save)
+
+    # Ensure we have exactly MAX_QUESTIONS_TO_RETURN questions
+    if len(generated_questions_for_response) < MAX_QUESTIONS_TO_RETURN and generated_questions_for_response:
+        print(f"Warning (diagnostic/generate-diagnostic): Only generated {len(generated_questions_for_response)} questions, need {MAX_QUESTIONS_TO_RETURN}. Creating variations...")
+        
+        # Create variations of existing questions to reach the target
+        original_questions = generated_questions_for_response.copy()
+        
+        while len(generated_questions_for_response) < MAX_QUESTIONS_TO_RETURN:
+            # Pick a random original question to create a variation from
+            base_question = original_questions[len(generated_questions_for_response) % len(original_questions)]
+            
+            # Create a variation with different difficulty and slightly modified content
+            variation_difficulty = max(0.1, min(0.9, base_question.difficulty + 0.2 if base_question.difficulty < 0.7 else base_question.difficulty - 0.2))
+            
+            variation_question = DiagnosticQuestion(
+                concept=base_question.concept,
+                question=f"[Variation] {base_question.question}",
+                option_a=base_question.option_a,
+                option_b=base_question.option_b,
+                correct_answer=base_question.correct_answer,
+                explanation=base_question.explanation,
+                difficulty=variation_difficulty
+            )
+            
+            generated_questions_for_response.append(variation_question)
+        
+        print(f"Info (diagnostic/generate-diagnostic): Padded to {len(generated_questions_for_response)} questions with variations.")
 
     if generated_questions_for_response:
         print(f"Info (diagnostic/generate-diagnostic): Successfully generated {len(generated_questions_for_response)} questions.")

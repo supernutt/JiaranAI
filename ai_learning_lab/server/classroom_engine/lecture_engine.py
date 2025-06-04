@@ -12,7 +12,7 @@ from .models import Message, Turn
 # but ensure it's accessible.
 client = OpenAI()
 
-def generate_simulated_lecture(topic: str, previous_summary: Optional[str] = None, model: str = "gpt-3.5-turbo-1106") -> List[Turn]:
+def generate_simulated_lecture(topic: str, previous_summary: Optional[str] = None, mastery_hint: str = "", model: str = "gpt-3.5-turbo-1106") -> List[Turn]:
     context_header = ""
     # Default instruction if no previous summary
     initial_instruction = f"You are simulating a virtual AI classroom about the topic: \"{topic}\"."
@@ -20,6 +20,10 @@ def generate_simulated_lecture(topic: str, previous_summary: Optional[str] = Non
     if previous_summary:
         context_header = f"Context of our discussion so far:\n{previous_summary}\n\n---\n"
         initial_instruction = f"Now, building on that, continue the lecture on \"{topic}\"."
+    
+    # Simple mastery integration - just append to instruction
+    if mastery_hint:
+        initial_instruction += mastery_hint
     
     # The SIMULATED_LECTURE_TEMPLATE should now correctly use these placeholders.
     # The {topic} placeholder within initial_instruction handles the topic injection.

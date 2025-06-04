@@ -1,122 +1,12 @@
 {
-    "Mental Health Assessment": {
-        "title": "Mental Health Assessment",
-        "description": "AI-derived group: Mental Health Assessment. Specific concept example: Narrator's Health Condition.",
-        "difficulty": 0.5
-    },
-    "Psychological Distress Indicators": {
-        "title": "Psychological Distress Indicators",
-        "description": "AI-derived group: Psychological Distress Indicators. Specific concept example: Intrusive Thoughts.",
-        "difficulty": 0.5
-    },
-    "Psychological Effects Of Environment": {
-        "title": "Psychological Effects Of Environment",
-        "description": "AI-derived group: Psychological Effects Of Environment. Specific concept example: Isolation and Paranoia.",
-        "difficulty": 0.5
-    },
-    "Coping Mechanisms": {
-        "title": "Coping Mechanisms",
-        "description": "AI-derived group: Coping Mechanisms. Specific concept example: Self-Destructive Behavior.",
-        "difficulty": 0.5
-    },
-    "Psychological Phenomena": {
-        "title": "Psychological Phenomena",
-        "description": "AI-derived group: Psychological Phenomena. Specific concept example: Hallucination.",
-        "difficulty": 0.5
-    },
-    "Literary Analysis": {
-        "title": "Literary Analysis",
-        "description": "AI-derived group: Literary Analysis. Specific concept example: Narrative Analysis.",
-        "difficulty": 0.5
-    },
-    "Atomic Physics": {
-        "title": "Atomic Physics",
-        "description": "AI-derived group: Atomic Physics. Specific concept example: Atomic Models.",
-        "difficulty": 0.5
-    },
     "Atomic Models": {
         "title": "Atomic Models",
-        "description": "AI-derived group: Atomic Models. Specific concept example: Rutherford's Model of the Atom.",
+        "description": "AI-derived group: Atomic Models. Specific concept example: John Dalton's Model of the Atom.",
         "difficulty": 0.5
     },
     "Atomic Physics Concepts": {
         "title": "Atomic Physics Concepts",
-        "description": "AI-derived group: Atomic Physics Concepts. Specific concept example: Crossed Fields.",
-        "difficulty": 0.5
-    },
-    "Mechanism Concepts": {
-        "title": "Mechanism Concepts",
-        "description": "AI-derived group: Mechanism Concepts. Specific concept example: Degrees of Freedom.",
-        "difficulty": 0.5
-    },
-    "Mechanism Analysis": {
-        "title": "Mechanism Analysis",
-        "description": "AI-derived group: Mechanism Analysis. Specific concept example: Degrees of freedom and mobility.",
-        "difficulty": 0.5
-    },
-    "Engineering Mechanics": {
-        "title": "Engineering Mechanics",
-        "description": "AI-derived group: Engineering Mechanics. Specific concept example: Degrees of Freedom.",
-        "difficulty": 0.5
-    },
-    "Mechanical Engineering Concepts": {
-        "title": "Mechanical Engineering Concepts",
-        "description": "AI-derived group: Mechanical Engineering Concepts. Specific concept example: Degrees of freedom.",
-        "difficulty": 0.5
-    },
-    "Mechanism Design": {
-        "title": "Mechanism Design",
-        "description": "AI-derived group: Mechanism Design. Specific concept example: Linkage Variants.",
-        "difficulty": 0.5
-    },
-    "Linkage Analysis": {
-        "title": "Linkage Analysis",
-        "description": "AI-derived group: Linkage Analysis. Specific concept example: Crank-rocker linkage analysis.",
-        "difficulty": 0.5
-    },
-    "Mechanism Types": {
-        "title": "Mechanism Types",
-        "description": "AI-derived group: Mechanism Types. Specific concept example: Planar Mechanisms.",
-        "difficulty": 0.5
-    },
-    "Atomic Physics Constants": {
-        "title": "Atomic Physics Constants",
-        "description": "AI-derived group: Atomic Physics Constants. Specific concept example: Rydberg constant.",
-        "difficulty": 0.5
-    },
-    "Spectral Analysis": {
-        "title": "Spectral Analysis",
-        "description": "AI-derived group: Spectral Analysis. Specific concept example: Dark lines in solar spectrum.",
-        "difficulty": 0.5
-    },
-    "Employment Documentation": {
-        "title": "Employment Documentation",
-        "description": "AI-derived group: Employment Documentation. Specific concept example: Employer Letter to SSA.",
-        "difficulty": 0.5
-    },
-    "Administrative Procedures": {
-        "title": "Administrative Procedures",
-        "description": "AI-derived group: Administrative Procedures. Specific concept example: Employer Letter.",
-        "difficulty": 0.5
-    },
-    "Admin Essentials": {
-        "title": "Admin Essentials",
-        "description": "AI-derived group: Admin Essentials. Specific concept example: Employer Identification Number.",
-        "difficulty": 0.5
-    },
-    "Atomic Physics Phenomena": {
-        "title": "Atomic Physics Phenomena",
-        "description": "AI-derived group: Atomic Physics Phenomena. Specific concept example: Dark Lines in Solar Spectrum.",
-        "difficulty": 0.5
-    },
-    "Quantum Physics": {
-        "title": "Quantum Physics",
-        "description": "AI-derived group: Quantum Physics. Specific concept example: Photon Emission.",
-        "difficulty": 0.5
-    },
-    "Quantum Mechanics": {
-        "title": "Quantum Mechanics",
-        "description": "AI-derived group: Quantum Mechanics. Specific concept example: Atomic Models.",
+        "description": "AI-derived group: Atomic Physics Concepts. Specific concept example: Crossed Fields: Discovery of the Electron.",
         "difficulty": 0.5
     }
 }
