@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Send, MessageSquare, User, Bot, Loader2, Sparkles, Lightbulb, Users, Film, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { marked } from 'marked';
+import { useSearchParams } from 'next/navigation';
 
 // API Base URL - can be updated based on environment
 const API_BASE_URL = 'http://localhost:8000';
@@ -42,6 +43,9 @@ export default function ClassroomPage() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
 
+  // State for diagnostic data integration
+  const [diagnosticData, setDiagnosticData] = useState(null);
+
   // --- State for Dialogue Overlay UI --- 
   const [isDialogueOverlayActive, setIsDialogueOverlayActive] = useState(false);
   const [currentDialogueScriptTurns, setCurrentDialogueScriptTurns] = useState([]);
@@ -65,128 +69,311 @@ export default function ClassroomPage() {
   const [currentBackoff, setCurrentBackoff] = useState(POLLING_INTERVAL); // Track current backoff time
   // --- End of video generation state ---
 
+  const abortControllerRef = useRef(null);
+
+  // Add this ref at the top of ClassroomPage component
+  const hasInitializedFromDiagnostic = useRef(false);
+
   // --- Helper function to display the current message in the Dialogue Overlay ---
-  const displayNextMessageInOverlay = (script, turnIdx, messageInTurnIdx, activeRoster) => {
-    if (!script || script.length === 0 || turnIdx >= script.length) {
-      // No more turns or script is empty, prepare for user input or end dialogue
-      setDisplayedMessageInfo(null); // Clear display
-      setIsAwaitingUserOverlayInput(true); // Expect user input next
-      // Potentially close overlay if no further interaction is planned after script ends without user input
-      // For now, we'll assume user input will follow or a new script will be loaded.
+  const displayNextMessageInOverlay = useCallback((script, turnIdx, messageInTurnIdx, activeRoster) => {
+    if (!script || !script[turnIdx]) {
+      console.error("Invalid script or turn index in displayNextMessageInOverlay", { script, turnIdx, messageInTurnIdx });
+      // Potentially set an error state for the UI here
+      setIsAwaitingUserOverlayInput(true); // Fallback to user input if script is bad
       return;
     }
 
-    const currentTurnData = script[turnIdx];
-    let messageText = "";
-    let authorName = "";
-    let authorInfo = null;
-
-    if (messageInTurnIdx === 0) { // Teacher's message
-      authorName = "Jiaran"; // Assuming teacher's name is fixed or derived from turn data if available
-      messageText = currentTurnData.teacher;
-    } else { // Student's message
-      const studentIndex = messageInTurnIdx - 1;
-      if (currentTurnData.students && studentIndex < currentTurnData.students.length) {
-        const student = currentTurnData.students[studentIndex];
-        authorName = student.author;
-        messageText = student.text;
-      } else {
-        // This means we've shown all students in this turn, move to next turn or await input
-        // This specific case is handled by the click handler logic later
-        // For now, if called directly, it might mean end of current turn's content
-        displayNextMessageInOverlay(script, turnIdx + 1, 0, activeRoster); // Try next turn
+    const currentTurn = script[turnIdx];
+    const isTeacherTurn = messageInTurnIdx === 0;
+    
+    let authorName, authorAvatar, messageText;
+    
+    if (isTeacherTurn) {
+      messageText = currentTurn.teacher;
+      if (typeof messageText !== 'string' || !messageText.trim()) { // Added type check and trim
+        console.error("Teacher message is invalid or empty", { teacherText: currentTurn.teacher });
+        setDisplayedMessageInfo({ author: "System", text: "Error: Received invalid teacher message.", avatar_url: null });
+        setIsAwaitingUserOverlayInput(true); // Fallback
         return;
       }
+      const teacherPersona = activeRoster.find(p => p.role === "teacher");
+      authorName = teacherPersona?.name || "Teacher";
+      authorAvatar = teacherPersona?.avatarUrl || null;
+    } else {
+      const studentMessage = currentTurn.students[messageInTurnIdx - 1];
+      if (!studentMessage || typeof studentMessage.text !== 'string' || !studentMessage.text.trim()) { // Added checks
+        console.error("Student message is invalid or empty", { studentMsg: studentMessage });
+        setDisplayedMessageInfo({ author: "System", text: "Error: Received invalid student message.", avatar_url: null });
+        setIsAwaitingUserOverlayInput(true); // Fallback
+        return;
+      }
+      authorName = studentMessage.author || "Student";
+      messageText = studentMessage.text;
+      const studentPersona = activeRoster.find(p => p.name === studentMessage.author);
+      authorAvatar = studentPersona?.avatarUrl || null;
     }
-    
-    authorInfo = activeRoster.find(p => p.name === authorName);
+
+    console.log("💬 Displaying message:", { authorName, textPreview: messageText.substring(0, 30) + "...", turnIdx, messageInTurnIdx, scriptLength: script.length });
+
+    // THIS IS A KEY CHANGE: When we display a message, we are *not* awaiting user input (yet).
+    // User input is only awaited *after* the entire script has been clicked through.
+    setIsAwaitingUserOverlayInput(false);
 
     setDisplayedMessageInfo({
       author: authorName,
       text: messageText,
-      avatar_url: authorInfo?.avatarUrl || null, // Fallback if avatar not found
+      avatar_url: authorAvatar
     });
-    setCurrentDialogueScriptTurns(script); // Ensure script is up to date
+
     setCurrentTurnInScriptIndex(turnIdx);
     setCurrentMessageIndexInTurn(messageInTurnIdx);
-    setIsDialogueOverlayActive(true);
-    setIsAwaitingUserOverlayInput(false); // AI/Student is "speaking"
-  };
-  // --- End Helper function ---
 
-  const scrollToBottom = () => {
-    if (chatContainerRef.current) {
-      // Using scrollTo for smooth behavior on the specific container
-      chatContainerRef.current.scrollTo({
-        top: chatContainerRef.current.scrollHeight,
-        behavior: 'smooth'
-      });
+    // The logic to set isAwaitingUserOverlayInput = true when the script ends is handled
+    // by handleNextMessageOrInput when it detects no more messages to display.
+
+  }, [roster]); // Removed dependencies that are passed as arguments (script, turnIdx, etc.)
+                 // Roster is a dependency because it's used from closure.
+
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  };
+  }, []); // No dependencies needed as it only uses ref
 
   useEffect(() => {
     // No longer using a separate timer, relying on React's render cycle and useEffect dependency
     scrollToBottom();
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
   // Helper function for sleep
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   // Function to add a message to the chat
-  const addMessage = (newMessage) => {
-    setMessages(prevMessages => [...prevMessages, newMessage]);
-  };
+  const addMessage = useCallback((newMessage) => {
+    setMessages(prev => [...prev, newMessage]);
+    // Scroll to bottom after message is added
+    setTimeout(scrollToBottom, 100);
+  }, [scrollToBottom]); // Add scrollToBottom as dependency
 
-  // Modified startLecture function
-  async function startLecture(lectureTopic, currentSessionId, currentRoster) {
-    // Messages state is managed by handleSubmit before calling startLecture
-    // setError(null); // error is managed by handleSubmit
-
-    // Add to the hidden log if desired
-    // addMessage({ author: "You", text: `Let's discuss: ${lectureTopic}`, avatar_url: null });
-
+  // Renamed from startLecture to avoid confusion, this is for fetching the script
+  const fetchLectureScript = useCallback(async (lectureTopic, currentSessionId, currentRoster) => {
+    if (!lectureTopic || !currentSessionId) {
+      console.error("Missing required parameters for fetchLectureScript");
+      setError("Cannot fetch lecture: missing topic or session ID."); // Set user-facing error
+      return Promise.reject(new Error("Missing parameters for fetchLectureScript")); // Return a rejected promise
+    }
+    // No setIsLoading here, as it's part of the broader initializeClassroomSession loading state
     try {
-      const res = await fetch(`${API_BASE_URL}/classroom/script`, {
+      console.log("📚 Fetching lecture script for topic:", lectureTopic, "Session:", currentSessionId);
+      const response = await fetch(`${API_BASE_URL}/classroom/script`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: lectureTopic, session_id: currentSessionId })
+        body: JSON.stringify({ 
+          topic: lectureTopic,
+          session_id: currentSessionId
+        }),
       });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ detail: res.statusText }));
-        // Display error in the old way for now, or adapt for overlay
-        setError(errorData.detail || 'Failed to fetch lecture script.');
-        const jiaranErrorAvatar = currentRoster.find(p => p.name === "Jiaran")?.avatarUrl;
-        addMessage({ author: "Jiaran", text: "I couldn't prepare a lecture on that topic right now. Maybe try another?", avatar_url: jiaranErrorAvatar });
-        setIsLoading(false); // Ensure loading stops
-        return;
-      }
-      const { turns } = await res.json();
-
-      if (!turns || turns.length === 0) {
-        const jiaranErrorAvatar = currentRoster.find(p => p.name === "Jiaran")?.avatarUrl;
-        // Display error in the old way for now, or adapt for overlay
-        addMessage({ author: "Jiaran", text: "I couldn't prepare a lecture on that topic right now. Maybe try another?", avatar_url: jiaranErrorAvatar });
-        setError("Received no turns for the lecture.");
-        setIsLoading(false); // Ensure loading stops
-        return;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+        console.error("Failed to fetch lecture script:", errorData.detail);
+        setError(errorData.detail || 'Failed to fetch lecture script');
+        throw new Error(errorData.detail || 'Failed to fetch lecture script');
       }
 
-      // Instead of looping and calling addMessage, set up for dialogue overlay
-      displayNextMessageInOverlay(turns, 0, 0, currentRoster);
+      const { turns } = await response.json();
       
-      // Clear the main chat input as interaction moves to overlay
-      setTopic(''); 
+      if (!turns || turns.length === 0) {
+        console.warn('No lecture content generated by API.');
+        setError('No lecture content was generated for this topic. Try a different one?');
+        // Still resolve as the API call was "successful" but empty, to avoid unhandled rejection upstream
+        // but don't try to display an empty script.
+        setIsDialogueOverlayActive(false); // Ensure overlay isn't active with no script
+        return; // Don't proceed to displayNextMessageInOverlay
+      }
+
+      console.log(`🎬 Received ${turns.length} turns for the lecture script.`);
+      setIsDialogueOverlayActive(true);
+      setCurrentDialogueScriptTurns(turns);
+      setCurrentTurnInScriptIndex(0); // Reset to start of new script
+      setCurrentMessageIndexInTurn(0); // Reset to start of new script
+      
+      displayNextMessageInOverlay(turns, 0, 0, currentRoster);
+      setError(null); // Clear any previous errors on success
 
     } catch (err) {
-      console.error('Error during lecture script execution:', err);
+      console.error('Error in fetchLectureScript:', err);
+      // Ensure error state is set for the UI
       setError(err.message || 'An error occurred fetching the lecture script.');
       const jiaranErrorAvatar = currentRoster.find(p => p.name === "Jiaran")?.avatarUrl;
-      addMessage({ author: "Jiaran", text: "Sorry, I ran into a problem delivering that lecture. Please try again.", avatar_url: jiaranErrorAvatar });
-    } finally {
-      // setIsLoading(false); // isLoading is managed by handleSubmit/sendTurn now
+      // Add a message to the main chat if overlay fails to load
+      // addMessage({ author: "Jiaran", text: "Sorry, I ran into a problem delivering that lecture. Please try again.", avatar_url: jiaranErrorAvatar });
+      setIsDialogueOverlayActive(false); // Don't show overlay if script fetch failed
+      throw err; // Re-throw to be caught by initializeClassroomSession if needed
     }
-  }
+  }, [displayNextMessageInOverlay, addMessage]); // addMessage removed if not used here for error
+
+  // New reusable function to initialize a classroom session
+  const initializeClassroomSession = useCallback(async (sessionTopic, masteryDistribution = null) => {
+    console.log("🎓 Initializing classroom session with topic:", sessionTopic);
+    
+    if (!sessionTopic || !sessionTopic.trim()) {
+      console.error("Topic cannot be empty.");
+      setError('Topic cannot be empty.');
+      return Promise.reject(new Error("Topic cannot be empty")); // Indicate failure
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setMessages([]); 
+    setSessionId(null); // Clear previous session ID before starting a new one
+    setRoster([]);      // Clear previous roster
+    setIsDialogueOverlayActive(false); // Ensure overlay is hidden during new init
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
+    const requestBody = { 
+      topic: sessionTopic,
+      mastery_distribution: masteryDistribution
+    };
+
+    try {
+      console.log("🚀 Calling /classroom/start API...");
+      const response = await fetch(`${API_BASE_URL}/classroom/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+        signal: signal
+      });
+
+      if (signal.aborted) {
+        console.log('/classroom/start fetch aborted (during call).');
+        throw new DOMException('Aborted', 'AbortError');
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+        console.error('Failed to start classroom session API error:', errorData.detail);
+        setError(errorData.detail || 'Failed to start classroom session');
+        throw new Error(errorData.detail || 'Failed to start classroom session');
+      }
+
+      const data = await response.json();
+      if (signal.aborted) {
+        console.log('/classroom/start fetch aborted (after response.json()).');
+        throw new DOMException('Aborted', 'AbortError');
+      }
+
+      console.log("✅ /classroom/start API success:", { sessionId: data.sessionId, rosterLength: data.roster?.length });
+      setSessionId(data.sessionId);
+      setRoster(data.roster || []);
+      
+      // Now fetch the initial lecture script using the new session ID and roster
+      await fetchLectureScript(sessionTopic, data.sessionId, data.roster || []);
+      setError(null); // Clear general errors if all good
+      
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        console.log('⏹️ Classroom session initialization aborted.');
+        // Don't setError here as it might be a rapid re-render, let the next attempt handle it.
+      } else {
+        console.error('❌ Error during classroom session initialization process:', err);
+        setError(err.message || 'An error occurred starting the session.');
+        // No need to add chat message here, error banner is primary
+        setSessionId(null); 
+      }
+      throw err; // Re-throw to be caught by the caller in useEffect, which handles hasInitializedFromDiagnostic.current
+    } finally {
+      // Only set isLoading to false if this specific operation is completing (not aborted by a new one)
+      if (abortControllerRef.current && signal === abortControllerRef.current.signal) {
+         setIsLoading(false);
+      }
+      console.log("🏁 Classroom initialization sequence finished (isLoading set to false if current op).");
+    }
+  }, [fetchLectureScript]); // Removed roster, addMessage from deps as they are not directly used or set here
+
+  // Remove auto-initialization logic entirely
+  const searchParams = useSearchParams();
+  
+  // Add effect to handle diagnostic data from URL params
+  useEffect(() => {
+    const fromDiagnostic = searchParams.get('fromDiagnostic');
+    const diagnosticTopic = searchParams.get('topic');
+    const masteryDataParam = searchParams.get('masteryData');
+    const accuracy = searchParams.get('accuracy');
+    const conceptsCoveredParam = searchParams.get('conceptsCovered');
+    
+    if (
+      fromDiagnostic === 'true' &&
+      diagnosticTopic &&
+      !sessionId && // Only if no session ID yet, meaning not initialized or previous attempt failed to set it
+      !hasInitializedFromDiagnostic.current // And we haven't successfully started initialization for this diagnostic flow
+    ) {
+      console.log("🎯 Initializing classroom from diagnostic data (Attempting once per diagnostic flow)");
+      // Mark that an attempt is being made for this diagnostic flow.
+      // This helps prevent re-entry from rapid re-renders before sessionId is set.
+      hasInitializedFromDiagnostic.current = true; 
+      
+      let masteryDistribution = null;
+      let conceptsCovered = [];
+      
+      try {
+        if (masteryDataParam) {
+          masteryDistribution = JSON.parse(masteryDataParam);
+        }
+        if (conceptsCoveredParam) {
+          conceptsCovered = JSON.parse(conceptsCoveredParam);
+        }
+      } catch (e) {
+        console.warn("Failed to parse diagnostic data from URL params:", e);
+        hasInitializedFromDiagnostic.current = false; // Reset flag if parsing failed
+        return; // Exit if params are bad
+      }
+      
+      setDiagnosticData({
+        accuracy: parseInt(accuracy) || 0,
+        conceptsCovered,
+        fromDiagnostic: true
+      });
+      
+      const readableTopic = diagnosticTopic.length > 100 
+        ? diagnosticTopic.substring(0, 100).trim() + "..."
+        : diagnosticTopic;
+      
+      initializeClassroomSession(readableTopic, masteryDistribution)
+        .then(() => {
+          // Successfully initiated (or at least the promise resolved without an error being thrown to here).
+          // hasInitializedFromDiagnostic.current remains true from before the call.
+          // Actual success is determined by sessionId and dialogue overlay appearing.
+          console.log("initializeClassroomSession promise resolved.");
+        })
+        .catch((err) => {
+          console.error("Error caught by diagnostic useEffect's .catch() block:", err); 
+          if (err.name === 'AbortError') {
+            console.warn("Diagnostic initialization attempt was aborted. Current sessionId:", sessionId);
+            // If an abort happens and we haven't successfully set a session ID from *this* attempt,
+            // it implies this specific attempt was cut short before completion.
+            // Resetting the flag allows the effect to re-trigger initialization 
+            // if it runs again and sessionId is still null (e.g. StrictMode remount).
+            if (!sessionId) { 
+              hasInitializedFromDiagnostic.current = false;
+            }
+          } else {
+            // For non-AbortErrors, this indicates a more definitive failure of the attempt.
+            console.error("Classroom initialization failed due to a non-abort error:", err.message);
+            setError(err.message || "Classroom setup failed."); // Ensure user sees an error
+            hasInitializedFromDiagnostic.current = false; // Allow a full retry if conditions reset (e.g., navigation)
+          }
+        });
+    }
+  }, [searchParams, sessionId, initializeClassroomSession, diagnosticData]); // Added diagnosticData to dependencies
+
+  // Removed auto-initialization useEffect to prevent loops
+  // Users can manually start classroom sessions from the form below
 
   const handleInputChange = (e) => {
     setInput(e.target.value);
@@ -200,48 +387,17 @@ export default function ClassroomPage() {
     setVideoPrompt(e.target.value);
   };
 
-  // Modified handleSubmit to manage session and then call startLecture
+  // Modified handleSubmit to use the new reusable function
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!topic.trim()) {
       setError('Please enter a topic to discuss.');
       return;
     }
-
-    setIsLoading(true);
-    setError(null);
-    setMessages([]); // Clear previous messages for a new lecture topic
-
-    try {
-      // 1. Start a new session or get roster
-      const startRes = await fetch(`${API_BASE_URL}/classroom/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: topic }), // Use the actual topic for session start
-      });
-      if (!startRes.ok) {
-        const errorData = await startRes.json().catch(() => ({ detail: startRes.statusText }));
-        throw new Error(errorData.detail || 'Failed to initialize classroom session.');
-      }
-      const sessionData = await startRes.json();
-      setSessionId(sessionData.sessionId);
-      const currentRoster = sessionData.roster || []; // Get roster directly
-      setRoster(currentRoster); // Set state for future use
-
-      // 2. Add the initial "Let's discuss" message from the user
-      addMessage({ author: "You", text: `Let's discuss: ${topic}`, avatar_url: null });
-      
-      // 3. Call startLecture with the new topic, sessionId, and currentRoster
-      await startLecture(topic, sessionData.sessionId, currentRoster);
-
-    } catch (err) {
-      console.error('Error starting new classroom topic:', err);
-      setError(err.message || 'An error occurred starting the new topic.');
-      // Optionally, display a generic error message in chat via addMessage
-    } finally {
-      setIsLoading(false);
+    // No need to set isLoading here, initializeClassroomSession will handle it.
+    // No need to clear messages or error here, initializeClassroomSession will handle it.
+    await initializeClassroomSession(topic);
       setTopic(''); // Clear topic input after attempting to start
-    }
   };
 
   // sendTurn function (for user's interactive messages AFTER lecture or for Q&A)
@@ -251,21 +407,28 @@ export default function ClassroomPage() {
   const sendTurn = async (userMessage) => {
     if (!sessionId) {
       setError('No active classroom session. Please start a new topic or lecture first.');
-      addMessage({author: "System", text: "Session not active. Please start a new topic.", avatar_url: null});
+      // Potentially add a user-facing message to an error component if not using addMessage for system errors
+      console.error("sendTurn called without sessionId");
       return;
     }
     if (!userMessage.trim()) return;
 
+    console.log("🗣️ sendTurn: Sending user message - ", userMessage.substring(0, 50) + "...");
     setIsLoading(true);
-    addMessage({ author: "You", text: userMessage, avatar_url: null });
-    setInput("");
+    // When a new user message is sent, we are no longer awaiting input for *that* specific exchange.
+    // We will await input again *after* the AI's new script finishes.
+    setIsAwaitingUserOverlayInput(false); 
+
+    // Add user message to chat log (optional, if you have a visible chat log outside the overlay)
+    // addMessage({ author: "You", text: userMessage, avatar_url: null }); 
+    
+    // No need to clear overlayInput here, it's cleared in handleOverlaySubmit after sendTurn completes or errors
 
     try {
-      // Use the script endpoint instead of turn endpoint to generate full multi-turn conversations
       const res = await fetch(`${API_BASE_URL}/classroom/script`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: userMessage, session_id: sessionId }),
+        body: JSON.stringify({ topic: userMessage, session_id: sessionId }), // userMessage becomes the new 'topic' for continuation
       });
       
       if (!res.ok) {
@@ -276,37 +439,38 @@ export default function ClassroomPage() {
       const { turns } = await res.json();
 
       if (!turns || turns.length === 0) {
-        // Handle error in overlay - maybe show a temporary message in displayedMessageInfo
+        console.warn("sendTurn: API returned no turns for user message.");
         setDisplayedMessageInfo({
           author: "System",
-          text: "I couldn't continue the discussion on that point. Try rephrasing?",
-          avatar_url: roster.find(p => p.name === "Jiaran")?.avatarUrl // Or a generic system avatar
+          text: "I couldn't generate a continuation for that. Try rephrasing or a different question?",
+          avatar_url: roster.find(p => p.name === "Jiaran")?.avatarUrl
         });
-        // After a short delay, re-enable user input or guide them
         setTimeout(() => {
-          if(isDialogueOverlayActive) setIsAwaitingUserOverlayInput(true);
-        }, 2000);
+          if(isDialogueOverlayActive) setIsAwaitingUserOverlayInput(true); // Allow user to try again
+        }, 2500);
         return;
       }
 
-      // Display the new script turns in the overlay
+      console.log(`💬 sendTurn: Received ${turns.length} new turns from API.`);
+      // KEY FIX: Update the main script state with the new turns
+      setCurrentDialogueScriptTurns(turns);
+      // Now display the first message of this new script.
+      // displayNextMessageInOverlay will also set currentTurnInScriptIndex and currentMessageIndexInTurn to 0,0
       displayNextMessageInOverlay(turns, 0, 0, roster); 
 
     } catch (err) {
-      console.error('Error sending message (turn):', err);
-      // Display error in overlay
+      console.error('Error in sendTurn:', err);
       setDisplayedMessageInfo({
         author: "System",
-        text: `Error: ${err.message || 'Could not send message.'}`,
-        avatar_url: null // Or a generic system error avatar
+        text: `Sorry, I encountered an issue: ${err.message || 'Could not process your message.'} Please try again.`,
+        avatar_url: null 
       });
-      // After a short delay, re-enable user input or guide them
       setTimeout(() => {
         if(isDialogueOverlayActive) setIsAwaitingUserOverlayInput(true); // Allow user to try again
-      }, 2000);
-      // setError(err.message || 'An error occurred sending your message.'); // Old error handling
+      }, 2500);
     } finally {
-      setIsLoading(false); // Ensure loading state is reset
+      setIsLoading(false); 
+      console.log("🏁 sendTurn: Processing finished.");
     }
   };
 
@@ -502,26 +666,39 @@ export default function ClassroomPage() {
 
   // --- Click handler for speech bubble to advance dialogue ---
   const handleNextMessageOrInput = () => {
-    if (isAwaitingUserOverlayInput) return; // Do nothing if waiting for user text input
+    // This log is crucial to see if the function is being called as expected
+    console.log("🖱️ handleNextMessageOrInput called. Current state:", 
+                { currentTurnInScriptIndex, currentMessageIndexInTurn, isAwaitingUserOverlayInput });
+
+    if (isAwaitingUserOverlayInput) {
+      console.log("handleNextMessageOrInput: Awaiting user input, doing nothing.");
+      return; 
+    }
 
     let nextMessageInTurnIdx = currentMessageIndexInTurn + 1;
     let nextTurnIdx = currentTurnInScriptIndex;
 
-    const currentTurnData = currentDialogueScriptTurns[currentTurnInScriptIndex];
-    const totalMessagesInCurrentTurn = 1 + (currentTurnData.students?.length || 0); // Teacher + students
+    // Ensure currentDialogueScriptTurns and currentTurnData are valid
+    if (!currentDialogueScriptTurns || currentDialogueScriptTurns.length === 0 || !currentDialogueScriptTurns[nextTurnIdx]) {
+        console.error("handleNextMessageOrInput: Invalid script or turn index.", { currentDialogueScriptTurns, nextTurnIdx });
+        setIsAwaitingUserOverlayInput(true); // Fallback to user input if script is suddenly bad
+        return;
+    }
+    const currentTurnData = currentDialogueScriptTurns[nextTurnIdx];
+    const totalMessagesInCurrentTurn = 1 + (currentTurnData.students?.length || 0);
 
     if (nextMessageInTurnIdx >= totalMessagesInCurrentTurn) {
-      // Moved past all messages in the current turn, so advance to the next turn
       nextTurnIdx++;
-      nextMessageInTurnIdx = 0; // Start with the teacher of the next turn
+      nextMessageInTurnIdx = 0; 
     }
 
     if (nextTurnIdx < currentDialogueScriptTurns.length) {
-      // There are more turns or messages to display
+      console.log(`Advancing to next message: Turn ${nextTurnIdx}, Message ${nextMessageInTurnIdx}`);
+      // setCurrentTurnInScriptIndex and setCurrentMessageIndexInTurn are now set by displayNextMessageInOverlay
       displayNextMessageInOverlay(currentDialogueScriptTurns, nextTurnIdx, nextMessageInTurnIdx, roster);
     } else {
-      // No more turns in the script, set up for user input
-      setDisplayedMessageInfo(null); // Clear current message
+      console.log("🏁 End of current script reached. Setting up for user input.");
+      setDisplayedMessageInfo(null); 
       setIsAwaitingUserOverlayInput(true);
     }
   };
@@ -547,7 +724,7 @@ export default function ClassroomPage() {
   // --- End Overlay Submit Handler ---
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-start p-4 pt-16 md:pt-24">
+    <div className="classroom-background-overlay relative min-h-screen text-foreground flex flex-col items-center justify-start p-4 pt-16 md:pt-24">
       <div className="absolute top-6 left-6">
         <Link href="/" className="text-primary hover:underline flex items-center gap-2">
          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-arrow-left"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
@@ -563,28 +740,69 @@ export default function ClassroomPage() {
         <p className="text-md text-muted-foreground max-w-xl">
           Enter a topic and engage in a simulated discussion with our AI learning assistants.
         </p>
-        {sessionId && (
-          <button 
-            onClick={resetClassroom}
-            className="mt-2 px-3 py-1 text-sm bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition-colors"
-          >
-            Start New Discussion
-          </button>
-        )}
       </header>
 
-      {/* Original Chat UI - Conditionally Hidden if Overlay is Active */}
-      {!isDialogueOverlayActive && (
+      {/* Diagnostic Data Banner */}
+      {diagnosticData && diagnosticData.fromDiagnostic && (
+        <div className="w-full max-w-2xl mb-6 p-4 bg-primary/10 border border-primary/30 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle2 className="h-5 w-5 text-primary" />
+            <h3 className="font-semibold text-primary">Continuing from Diagnostic Quiz</h3>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            <p className="mb-1">
+              Your quiz results: <span className="font-medium text-foreground">{diagnosticData.accuracy}% accuracy</span>
+            </p>
+            {diagnosticData.conceptsCovered && diagnosticData.conceptsCovered.length > 0 && (
+              <p>
+                Concepts covered: <span className="font-medium text-foreground">
+                  {diagnosticData.conceptsCovered.slice(0, 3).join(', ')}
+                  {diagnosticData.conceptsCovered.length > 3 && ` +${diagnosticData.conceptsCovered.length - 3} more`}
+                </span>
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Initial Topic Input Area - Hidden when coming from diagnostic, displayed when no session and no overlay */}
+      {!sessionId && !isDialogueOverlayActive && !diagnosticData?.fromDiagnostic && (
+        <div className="w-full max-w-xl mt-8 p-6 bg-card text-card-foreground rounded-xl shadow-2xl border border-border flex flex-col items-center">
+          <Users size={48} className="text-muted-foreground mb-4" />
+          <p className="text-lg text-muted-foreground mb-6 text-center">
+            What fascinating subject would you like to explore today?
+          </p>
+          {error && (
+            <p className="text-destructive text-sm mb-3 p-3 bg-destructive/10 rounded-md w-full text-center">{error}</p>
+          )}
+          <form onSubmit={handleSubmit} className="w-full flex flex-col items-center gap-4">
+            <input
+              type="text"
+              value={topic}
+              onChange={handleTopicChange}
+              placeholder="e.g., 'The Mysteries of the Cosmos' or 'The Art of Storytelling'..."
+              className="w-full p-4 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary shadow-sm disabled:opacity-50 text-base"
+              disabled={isLoading}
+              autoFocus
+            />
+            <button 
+              type="submit" 
+              disabled={isLoading || !topic.trim()}
+              className="w-full p-4 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-card disabled:opacity-50 shadow-md text-base font-semibold flex items-center justify-center gap-2"
+            >
+              {isLoading ? <><Loader2 className="h-5 w-5 animate-spin" /> Starting Discussion...</> : <><Sparkles className="h-5 w-5" /> Begin Lecture</>}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Original Chat UI - Conditionally Hidden if Overlay is Active OR if it's initial state and no session */}
+      {sessionId && !isDialogueOverlayActive && (
+        // This section is now less likely to be seen with the current flow, 
+        // as starting a session immediately tries to launch the overlay.
+        // It could serve as a fallback or if we re-introduce a way to see the old chat log.
         <div className="bg-card text-card-foreground rounded-xl shadow-2xl w-full max-w-2xl border border-border flex flex-col" style={{height: '70vh'}}>
           <div ref={chatContainerRef} className="flex-grow p-6 space-y-6 overflow-y-auto scrollbar-thin scrollbar-thumb-secondary scrollbar-track-transparent">
-            {messages.length === 0 && !isLoading && (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <Users size={48} className="text-muted-foreground mb-4" />
-                <p className="text-lg text-muted-foreground">
-                  Enter a topic below to start the discussion.
-                </p>
-              </div>
-            )}
             {messages.map((msg, index) => (
               <div key={index} className={`flex items-start gap-3 ${msg.author === 'You' ? 'justify-end' : 'justify-start'}`}>
                 {msg.author !== 'You' && (
@@ -627,38 +845,14 @@ export default function ClassroomPage() {
               </div>
             )}
           </div>
-          
           <div className="border-t border-border p-4 bg-card rounded-b-xl">
-            {error && (
-              <p className="text-destructive text-xs mb-2 px-1">{error}</p>
-            )}
-            {!sessionId ? (
-              // Topic submission form
-            <form onSubmit={handleSubmit} className="flex items-center gap-3">
-              <input
-                type="text"
-                value={topic}
-                  onChange={handleTopicChange}
-                placeholder="Enter a topic to discuss, e.g., 'The Future of AI'..."
-                className="flex-grow p-3 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary shadow-sm disabled:opacity-50"
-                disabled={isLoading}
-              />
-              <button 
-                type="submit" 
-                disabled={isLoading || !topic.trim()}
-                className="p-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-card disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
-              >
-                {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />} 
-              </button>
-            </form>
-            ) : (
-              // Message input form for ongoing conversation (original chat)
-              <form onSubmit={handleMessageSubmit} className="flex items-center gap-3">
+            {/* Input for the old chat - might be removed if this view is fully deprecated */}
+            <form onSubmit={handleMessageSubmit} className="flex items-center gap-3">
                 <input
                   type="text"
                   value={input}
                   onChange={handleInputChange}
-                  placeholder="Type a question..."
+                  placeholder="Type a question (fallback chat)..."
                   className="flex-grow p-3 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary shadow-sm disabled:opacity-50"
                   disabled={isLoading}
                 />
@@ -670,7 +864,6 @@ export default function ClassroomPage() {
                   {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />} 
                 </button>
               </form>
-            )}
           </div>
         </div>
       )}

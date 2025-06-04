@@ -1,82 +1,65 @@
 import Link from 'next/link';
-import { BookOpen, UploadCloud, MessageSquare, Zap, Users } from 'lucide-react';
 import Image from 'next/image';
 
-export default function Home() {
+// TODO: Ensure "Gotham Bold" and "Gotham Extra Bold" fonts are loaded in the project.
+// You might need to import them in globals.css and add them to tailwind.config.js theme.fontFamily.
+// For now, using font-bold and a generic sans-serif.
+// Example for tailwind.config.js:
+// fontFamily: {
+//   sans: [\'Gotham\', \'sans-serif\'], // Default sans-serif
+//   gothamBold: [\'Gotham Bold\', \'sans-serif\'],
+//   gothamExtraBold: [\'Gotham Extra Bold\', \'sans-serif\'],
+// }
+// Then you could use classes like `font-gothamBold` or `font-gothamExtraBold`.
+
+export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-4">
-      <header className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <Image src="/assets/logos/JiaranAI.png" alt="JiaranAI Logo" width={96} height={96} className="h-24 w-24 text-primary" />
-          <h1 className="text-2xl font-bold"><span className="font-light">Learning Lab</span></h1>
-        </div>
-        {/* Future: Dark mode toggle or user profile could go here */}
-      </header>
+    // TODO: Implement the background style as shown in the image.
+    // This might involve a CSS gradient or a background image.
+    // Example: style={{ backgroundImage: 'url("/path/to/your/background.jpg")' }}
+    // Or using Tailwind classes if you define the gradient/image in tailwind.config.js
+    <div 
+      className="min-h-screen flex flex-col items-center justify-center p-4 text-white bg-cover bg-center"
+      style={{ backgroundImage: 'url("/assets/landing-background.png")' }} // Assumes you place the image at frontend/public/assets/landing-background.png
+    >
+      {/* Placeholder for the complex background from the image */}
 
-      <main className="text-center space-y-10 max-w-4xl w-full">
-        <div className="space-y-3">
-          <h2 className="text-5xl font-bold tracking-tight">
-            Unlock Your Potential with <span className="text-primary">AI-Powered Learning</span>
-          </h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Upload your course materials, get instant diagnostic quizzes, and engage in simulated classroom discussions to master any subject.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <FeatureCard
-            href="/upload"
-            icon={<UploadCloud className="h-10 w-10 mb-4 text-primary" />}
-            title="Upload Content"
-            description="Securely upload your lecture notes, PDFs, or text. We process it instantly."
-          />
-          <FeatureCard
-            href="/swipe"
-            icon={<Zap className="h-10 w-10 mb-4 text-primary" />}
-            title="Diagnostic Quizzes"
-            description="Test your understanding with adaptive, swipe-style questions generated from your content."
-          />
-          <FeatureCard
-            href="/classroom"
-            icon={<Users className="h-10 w-10 mb-4 text-primary" />}
-            title="AI Classroom"
-            description="Deepen your knowledge by discussing topics with our AI-powered virtual classmates."
+      <main className="flex flex-col items-center justify-center text-center space-y-4 flex-grow">
+        {/* Logo container */}
+        <div className="flex items-center justify-center">
+          <Image
+            src="/assets/logos/JiaranAI.png" // Assumed path, confirm or update
+            alt="JiaranAI Logo"
+            width={240} // Increased size from 200
+            height={240} // Increased size from 200
+            style={{ height: 'auto' }} // Maintain aspect ratio if width is constrained by CSS or parent
           />
         </div>
 
-        <div className="pt-8">
-          <Link 
-            href="/upload" 
-            className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-3 px-8 rounded-lg text-lg transition-colors shadow-lg hover:shadow-primary/40"
-          >
-            Get Started Now
-          </Link>
-        </div>
+        {/* Headline Text */}
+        {/* "We Craft. You Learn." uses Gotham Bold (font-bold) */}
+        {/* "JiaranAI" (if text) uses Gotham Bold (font-bold) */}
+        <h1 className="text-7xl md:text-8xl font-bold leading-tight">
+          {/* This is a placeholder for JiaranAI text if it's part of the logo image, or add text here */}
+          {/* <span className="block mb-2 text-4xl font-bold">JiaranAI</span> */}
+          We <span style={{ color: '#96DCFD' }}>Craft</span><span style={{ color: 'white' }}>.</span>
+          <br />
+          You <span style={{ color: '#EFC900' }}>Learn</span><span style={{ color: 'white' }}>.</span>
+        </h1>
+        
+        {/* Get Started Button */}
+        <Link
+          href="/dashboard"
+          className="bg-[#7851A9] text-white font-bold py-3 px-10 rounded-lg text-xl hover:bg-[#6A409A] transition-colors shadow-lg"
+        >
+          Get Started
+        </Link>
       </main>
 
-      <footer className="absolute bottom-0 left-0 right-0 p-6 text-center text-muted-foreground text-sm">
-        <p>© {new Date().getFullYear()} JiaranAI Learning Lab. All rights reserved.</p>
-      </footer>
+      {/* Optional: Footer if needed on the landing page */}
+      {/* <footer className="w-full p-4 text-center text-sm text-gray-300">
+        <p>© {new Date().getFullYear()} JiaranAI. All rights reserved.</p>
+      </footer> */}
     </div>
   );
-}
-
-interface FeatureCardProps {
-  href: string;
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}
-
-function FeatureCard({ href, icon, title, description }: FeatureCardProps) {
-  return (
-    <Link 
-      href={href} 
-      className="bg-card text-card-foreground p-6 rounded-lg border border-border hover:border-primary/50 hover:shadow-xl hover:shadow-primary/20 transition-all transform hover:-translate-y-1 flex flex-col items-center text-center"
-    >
-      {icon}
-      <h3 className="text-xl font-semibold mb-2">{title}</h3>
-      <p className="text-sm text-muted-foreground">{description}</p>
-    </Link>
-  );
-}
+} 

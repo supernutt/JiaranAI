@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import SwipeCards from '@/components/SwipeCards';
 import MasteryChart from '@/components/MasteryChart';
@@ -9,8 +9,7 @@ import { Loader2, AlertTriangle, BarChart3, Brain, RotateCw } from 'lucide-react
 
 const API_BASE_URL = 'http://localhost:8000';
 const USER_ID_FOR_QUIZ = "testUser123";
-const MAX_QUESTIONS_IN_SESSION = 20;
-const BATCH_SIZE = 5;
+const MAX_QUESTIONS_IN_SESSION = 10;
 
 export default function SwipePage() {
   const router = useRouter();
@@ -26,109 +25,142 @@ export default function SwipePage() {
   const [currentConceptForSummary, setCurrentConceptForSummary] = useState("");
   const [masteryHistory, setMasteryHistory] = useState([]);
 
-  const fetchInitialBatch = useCallback(async () => {
-    console.log("Fetching initial batch...");
-      setIsLoading(true);
-      setError(null);
-      const uploadedContent = sessionStorage.getItem('uploadedContent');
+  // Add ref to prevent duplicate API calls
+  const hasInitialized = useRef(null);
+  const abortControllerRef = useRef(null);
 
-      if (!uploadedContent) {
-        console.log('No uploaded content found, redirecting to upload page.');
-        router.push('/upload');
-        return;
+  // Debug logging for state changes
+  console.log("SwipePage render state:", {
+    isLoading,
+    currentBatchQuestionsLength: currentBatchQuestions.length,
+    error,
+    isQuizOver,
+    hasInitialized: hasInitialized.current
+  });
+
+  useEffect(() => {
+    // Removed automatic classroom redirection logic
+    // Quiz will now stay on the results page after completion
+  }, [isQuizOver, router]);
+
+  const fetchInitialBatch = useCallback(async () => {
+    const uploadedContent = sessionStorage.getItem('uploadedContent');
+
+    if (!uploadedContent) {
+      console.log('No uploaded content found, redirecting to upload page.');
+      router.push('/upload');
+      return;
+    }
+
+    const contentKey = btoa(uploadedContent.substring(0, 100)).substring(0, 20);
+
+    // If this specific contentKey has already been successfully processed AND questions are loaded, skip.
+    // This check is more for subsequent calls/re-renders after a successful load,
+    // rather than the StrictMode double-useEffect scenario.
+    if (hasInitialized.current === contentKey && currentBatchQuestions.length > 0) {
+      console.log("Content already processed and questions exist, skipping fetch.");
+      return;
+    }
+    // If isLoading is true, it means a fetch is already in progress.
+    // The AbortController will handle the old one if this new call proceeds.
+    // Avoids queueing up multiple setIsLoading(true) -> setIsLoading(false) if not careful.
+    // For now, let new calls proceed and abort old ones.
+
+    console.log(`Fetching initial batch for contentKey: ${contentKey}. isLoading: ${isLoading}`);
+    setIsLoading(true);
+    setError(null);
+    // Do not clear currentBatchQuestions here to avoid flicker if questions are successfully fetched.
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort(); // Abort previous request
+      console.log("Aborted previous fetchInitialBatch request.");
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
+    try {
+      console.log("Initiating API call to /generate-diagnostic");
+      const response = await fetch(`${API_BASE_URL}/generate-diagnostic`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: uploadedContent }),
+        signal: signal,
+      });
+
+      if (signal.aborted) {
+        console.log('Fetch aborted after API call, before processing response.');
+        return; // setIsLoading(false) will be handled by finally
       }
 
-      try {
-      const response = await fetch(`${API_BASE_URL}/generate-diagnostic`, {
-          method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: uploadedContent }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
         setError(errorData.detail || 'Failed to load initial questions.');
         setCurrentBatchQuestions([]);
-        } else {
-          const data = await response.json();
-          if (data && data.questions && data.questions.length > 0) {
+        hasInitialized.current = null; // Error occurred, allow this content to be fully retried.
+        console.error('API response not OK:', errorData.detail || response.statusText);
+      } else {
+        const data = await response.json();
+        if (signal.aborted) {
+          console.log('Fetch aborted after response.json().');
+          return; // setIsLoading(false) will be handled by finally
+        }
+
+        if (data && data.questions && data.questions.length > 0) {
+          console.log(`Successfully fetched ${data.questions.length} questions.`);
           setCurrentBatchQuestions(data.questions);
           setAnsweredInBatchCount(0);
-          } else {
-          setError('No questions generated for this content. Try different material.');
+          setError(null); // Clear any previous error state
+          hasInitialized.current = contentKey; // Mark this content as successfully processed
+        } else {
+          console.log('API call successful, but no questions were generated.');
+          setError('No questions generated for this content. Please try different material.');
           setCurrentBatchQuestions([]);
+          hasInitialized.current = contentKey; // Mark this content as processed (even if no questions)
         }
       }
     } catch (err) {
-      console.error('Error fetching initial questions:', err);
-      setError('An error occurred while fetching initial questions.');
-      setCurrentBatchQuestions([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [router]);
-
-  const fetchNextAdaptiveBatch = useCallback(async () => {
-    // Prevent multiple simultaneous batch fetches
-    if (isLoading || totalQuestionsAnsweredInSession >= MAX_QUESTIONS_IN_SESSION) {
-      console.log("Already loading or max questions reached, not fetching next batch");
-      if (totalQuestionsAnsweredInSession >= MAX_QUESTIONS_IN_SESSION) {
-        setIsQuizOver(true);
-      }
-      return;
-    }
-    console.log("Fetching next adaptive batch...");
-    setIsLoading(true);
-    setError(null);
-    try {
-      console.log(`Calling API: ${API_BASE_URL}/next-question-batch/${USER_ID_FOR_QUIZ}?count=${BATCH_SIZE}`);
-      const response = await fetch(`${API_BASE_URL}/next-question-batch/${USER_ID_FOR_QUIZ}?count=${BATCH_SIZE}`);
-      
-      console.log("API response status:", response.status);
-      
-      if (!response.ok) {
-        const responseText = await response.text();
-        console.error("Error response from next-question-batch:", responseText);
-        
-        let errorDetail;
-        try {
-          const errorData = JSON.parse(responseText);
-          errorDetail = errorData.detail || response.statusText;
-        } catch (e) {
-          errorDetail = responseText || response.statusText;
-        }
-        
-        setError(errorDetail || 'Failed to load next batch of questions.');
-        setIsQuizOver(true);
-        setCurrentBatchQuestions([]); 
+      if (err.name === 'AbortError' || signal.aborted) {
+        console.log('Fetch operation was aborted (in catch block).');
       } else {
-        const data = await response.json();
-        console.log("Next batch data:", data);
-        
-        if (data && data.length > 0) {
-          console.log(`Successfully fetched ${data.length} new questions`);
-          setCurrentBatchQuestions(data);
-          setAnsweredInBatchCount(0); // Reset batch count to 0 after getting new questions
-        } else {
-          console.warn("API returned empty question set");
-          setError('No more adaptive questions available for your profile.');
-          setIsQuizOver(true);
-          setCurrentBatchQuestions([]);
-          }
-        }
-      } catch (err) {
-      console.error('Error fetching next adaptive batch:', err);
-      setError('An error occurred while fetching adaptive questions.');
-      setIsQuizOver(true);
-      setCurrentBatchQuestions([]);
-      } finally {
-        setIsLoading(false);
+        console.error('Error fetching initial questions:', err);
+        setError('An error occurred while fetching initial questions.');
+        setCurrentBatchQuestions([]);
+        hasInitialized.current = null; // Network or other error, allow this content to be fully retried.
       }
-  }, [totalQuestionsAnsweredInSession, isLoading]);
+    } finally {
+      // Only set isLoading to false if this specific fetch operation is the one completing
+      // and hasn't been superseded by a new one (which would have its own AbortController signal).
+      if (abortControllerRef.current && abortControllerRef.current.signal === signal) {
+        setIsLoading(false);
+        console.log("fetchInitialBatch finally block: setIsLoading(false) for the completed/aborted operation.");
+      } else if (!abortControllerRef.current && signal.aborted){
+        // This case handles if the controller was nulled by unmount cleanup and this was the aborted call
+         setIsLoading(false);
+         console.log("fetchInitialBatch finally block: setIsLoading(false) for operation aborted by unmount/cleanup.");
+      } else {
+         console.log("fetchInitialBatch finally block: setIsLoading(false) skipped as a new fetch might have started or this was superseded.");
+      }
+    }
+  }, [router, isLoading, currentBatchQuestions.length]); // Added isLoading and currentBatchQuestions.length to deps for the guard condition.
 
   useEffect(() => {
-    fetchInitialBatch();
-  }, [fetchInitialBatch]);
+    const uploadedContent = sessionStorage.getItem('uploadedContent');
+    if (uploadedContent) {
+      console.log("useEffect (mount/content change): Found uploadedContent, calling fetchInitialBatch. Current hasInitialized: ", hasInitialized.current);
+      fetchInitialBatch();
+    } else {
+      console.log('useEffect (mount/content change): No content in sessionStorage, redirecting to /upload.');
+      router.push('/upload');
+    }
+
+    return () => {
+      console.log("useEffect (unmount/before re-run): Cleanup. Aborting fetch if active.");
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null; // Important to nullify for the finally block logic in fetchInitialBatch
+      }
+    };
+  }, []); // Keep `[]` for mount/unmount. Re-fetching for *new* content is handled by navigating away and back.
 
   const handleAnswer = async (question, userAnswer) => {
     // Prevent processing answers during loading state or when quiz is over
@@ -206,7 +238,7 @@ export default function SwipePage() {
     
     console.log("Navigation logic:", {
       nextAnsweredInBatch,
-      batchSize: BATCH_SIZE,
+      batchSize: MAX_QUESTIONS_IN_SESSION,
       nextTotalAnswered,
       MAX_QUESTIONS_IN_SESSION,
       currentBatchQuestions: currentBatchQuestions.length
@@ -218,13 +250,14 @@ export default function SwipePage() {
 
     // Determine next action based on updated counters
     if (nextTotalAnswered >= MAX_QUESTIONS_IN_SESSION) {
-      console.log("Quiz over - reached max questions");
+      console.log("Quiz over - reached max questions (10)");
       setIsQuizOver(true);
-    } else if (nextAnsweredInBatch >= Math.min(currentBatchQuestions.length, BATCH_SIZE)) {
-      // Only fetch next batch if we've answered all questions in current batch
-      // and we're not already loading (the useCallback dependency will check this)
-      console.log("Fetching next batch");
-      fetchNextAdaptiveBatch();
+    } else if (nextAnsweredInBatch >= currentBatchQuestions.length && currentBatchQuestions.length > 0) {
+      // This condition implies all questions from the initial batch are answered, but we haven't hit MAX_QUESTIONS_IN_SESSION.
+      // This should ideally not happen if initial batch fetches MAX_QUESTIONS_IN_SESSION.
+      // If it does, it means initial fetch provided fewer than 10 questions. End quiz.
+      console.log("All questions from initial batch answered. Ending quiz as no more fetching logic.");
+      setIsQuizOver(true);
     }
   };
   
@@ -249,9 +282,58 @@ export default function SwipePage() {
     )
   )];
 
+  // Helper function to create classroom URL with diagnostic data
+  const createClassroomUrl = () => {
+    const uploadedContent = sessionStorage.getItem('uploadedContent');
+    if (!uploadedContent || !isQuizOver) return '/classroom';
+    
+    // Prepare mastery data from diagnostic results
+    const masteryData = {};
+    sessionUserAnswers.forEach(answer => {
+      if (answer.concept) {
+        if (!masteryData[answer.concept]) {
+          masteryData[answer.concept] = { correct: 0, total: 0 };
+        }
+        masteryData[answer.concept].total++;
+        if (answer.isCorrect) {
+          masteryData[answer.concept].correct++;
+        }
+      }
+    });
+
+    // Convert mastery history to a simplified format for the classroom
+    const masteryDistribution = {};
+    masteryHistory.forEach(entry => {
+      if (entry.concept && entry.belief) {
+        masteryDistribution[entry.concept] = entry.belief;
+      }
+    });
+
+    // Create URL with query parameters
+    const params = new URLSearchParams({
+      fromDiagnostic: 'true',
+      topic: uploadedContent.substring(0, 200), // First 200 chars as topic
+      accuracy: accuracy.toString(),
+      conceptsCovered: JSON.stringify(uniqueConceptsCoveredInSession),
+      masteryData: JSON.stringify(masteryDistribution)
+    });
+
+    return `/classroom?${params.toString()}`;
+  };
+
   if (isLoading && currentBatchQuestions.length === 0 && !isQuizOver) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-4">
+      <div 
+        className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-4 relative"
+        style={{
+          backgroundImage: "url('/assets/diagnostic-hallway.png')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          backgroundBlendMode: 'overlay',
+          backgroundColor: 'rgba(0, 0, 0, 0.3)'
+        }}
+      >
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <p className="text-lg text-muted-foreground">Generating your personalized quiz...</p>
       </div>
@@ -259,7 +341,17 @@ export default function SwipePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-start p-4 pt-16 md:pt-24 w-full">
+    <div 
+      className="min-h-screen bg-background text-foreground flex flex-col items-center justify-start p-4 pt-16 md:pt-24 w-full relative"
+      style={{
+        backgroundImage: "url('/assets/diagnostic-hallway.png')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundBlendMode: 'overlay',
+        backgroundColor: 'rgba(0, 0, 0, 0.3)'
+      }}
+    >
       <div className="absolute top-6 left-6">
         <Link href="/upload" className="text-primary hover:underline flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-arrow-left"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
@@ -327,6 +419,9 @@ export default function SwipePage() {
               <p className="text-muted-foreground mb-4">
                 You answered {totalQuestionsAnsweredInSession} questions with {accuracy}% accuracy.
               </p>
+              <p className="text-md text-muted-foreground mb-4 italic">
+                Great job! You can start a new quiz or explore other content.
+              </p>
               {uniqueConceptsCoveredInSession.length > 0 && (
               <div className="mb-6">
                 <h4 className="text-lg font-medium mb-2">Concepts Covered:</h4>
@@ -335,12 +430,20 @@ export default function SwipePage() {
                   </ul>
                 </div>
                 )}
-              <Link 
-                href="/upload" 
-                className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-2.5 px-6 rounded-lg transition-colors shadow-md text-base"
-              >
-                Start a New Quiz
-              </Link>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Link 
+                  href="/upload" 
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-2.5 px-6 rounded-lg transition-colors shadow-md text-base"
+                >
+                  Start a New Quiz
+                </Link>
+                <Link 
+                  href={createClassroomUrl()} 
+                  className="bg-secondary text-secondary-foreground hover:bg-secondary/90 font-semibold py-2.5 px-6 rounded-lg transition-colors shadow-md text-base"
+                >
+                  Visit Classroom
+                </Link>
+              </div>
             </div>
           )}
           
@@ -351,12 +454,23 @@ export default function SwipePage() {
               <p className="text-muted-foreground mb-6">
                 We couldn't generate questions for the uploaded content. Please try different material.
               </p>
-              <Link 
-                href="/upload" 
-                className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-2 px-6 rounded-lg transition-colors shadow-md"
-              >
-                Upload New Content
-              </Link>
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => {
+                    hasInitialized.current = null; // Reset to allow retry
+                    fetchInitialBatch();
+                  }}
+                  className="bg-secondary text-secondary-foreground hover:bg-secondary/90 font-medium py-2 px-4 rounded-lg flex items-center justify-center gap-2"
+                >
+                  <RotateCw className="h-4 w-4"/> Retry Generation
+                </button>
+                <Link 
+                  href="/upload" 
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold py-2 px-6 rounded-lg transition-colors shadow-md"
+                >
+                  Upload New Content
+                </Link>
+              </div>
             </div>
           )}
         </div>
